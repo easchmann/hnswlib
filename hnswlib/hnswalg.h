@@ -20,6 +20,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     static const tableint MAX_LABEL_OPERATION_LOCKS = 65536;
     static const unsigned char DELETE_MARK = 0x01;
 
+    // added for array guard
+    // static constexpr int MAX_LAYERS = 32;
+
     size_t max_elements_{0};
     mutable std::atomic<size_t> cur_element_count{0};  // current number of elements
     size_t size_data_per_element_{0};
@@ -69,6 +72,27 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     std::mutex deleted_elements_lock;  // lock for deleted_elements
     std::unordered_set<tableint> deleted_elements;  // contains internal ids of deleted elements
+
+
+    // instrumentation for query analysis
+
+    struct QueryStats {
+        // upper layer stats
+        dist_t entry_point_distance = 0.0;              // distance from query to global entry point
+        dist_t base_layer_entry_distance = 0.0;         // distance after upper layer descent
+        size_t upper_layer_distance_computations = 0;
+        // size_t layer_visit_counts[MAX_LAYERS] = {};
+        // sized to maxlevel_ at query time
+        std::vector<size_t> layer_visit_counts;         // visits per upper layer
+
+        // base layer stats (filled in by searchBaseLayerST)
+        size_t base_layer_visited_count = 0;
+        size_t base_layer_distance_computations = 0;
+
+        // TODO: maybe add traces at some point??
+    };
+
+    mutable thread_local QueryStats last_query_stats;
 
 
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
@@ -250,6 +274,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
             candidateSet.pop();
 
+            // increments by one per node processed
+            last_query_stats.base_layer_visited_count++;  
+
             tableint curNodeNum = curr_el_pair.second;
 
             std::unique_lock <std::mutex> lock(link_list_locks_[curNodeNum]);
@@ -282,6 +309,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 char *currObj1 = (getDataByInternalId(candidate_id));
 
                 dist_t dist1 = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                // increments by one for each call to distfunc
+                last_query_stats.base_layer_distance_computations++; 
+
                 if (top_candidates.size() < ef_construction_ || lowerBound > dist1) {
                     candidateSet.emplace(-dist1, candidate_id);
 #ifdef USE_SSE
@@ -1275,8 +1305,22 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         tableint currObj = enterpoint_node_;
         dist_t curdist = fstdistfunc_(query_data, getDataByInternalId(enterpoint_node_), dist_func_param_);
 
+        // reset query stats
+        last_query_stats = QueryStats{};
+
+        // entry point distance: how far is the fixed entry point from the query?
+        // if this grows after a distribution shift, the entry point might be a problem
+        last_query_stats.entry_point_distance = curdist;
+
+        last_query_stats.layer_visit_counts.assign(maxlevel_ + 1, 0);
+
+
         for (int level = maxlevel_; level > 0; level--) {
             bool changed = true;
+
+            // upper layer visit count per layer
+            size_t layer_visits = 0;
+
             while (changed) {
                 changed = false;
                 unsigned int *data;
@@ -1293,14 +1337,29 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                         throw std::runtime_error("cand error");
                     dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
 
+                    // count distance computations (increments with each call of distfunc)
+                    last_query_stats.upper_layer_distance_computations++;
+
                     if (d < curdist) {
                         curdist = d;
                         currObj = cand;
                         changed = true;
                     }
+
+                    // count every neighbor examined
+                    layer_visits++;
                 }
             }
+
+            // store visits for this layer (layer index 1 to maxlevel_)
+            // if (level < MAX_LAYERS) { 
+            //     last_query_stats.layer_visit_counts[level] = layer_visits;
+            // }
+            last_query_stats.layer_visit_counts[level] = layer_visits;
+
         }
+        // after the upper layer for loop finishes, curdist holds the distance to the best entry node found by the descent
+        last_query_stats.base_layer_entry_distance = curdist;
 
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
         bool bare_bone_search = !num_deleted_ && !isIdAllowed;
