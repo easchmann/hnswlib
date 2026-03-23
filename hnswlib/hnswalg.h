@@ -274,9 +274,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
             candidateSet.pop();
 
-            // increments by one per node processed
-            last_query_stats.base_layer_visited_count++;  
-
             tableint curNodeNum = curr_el_pair.second;
 
             std::unique_lock <std::mutex> lock(link_list_locks_[curNodeNum]);
@@ -309,8 +306,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 char *currObj1 = (getDataByInternalId(candidate_id));
 
                 dist_t dist1 = fstdistfunc_(data_point, currObj1, dist_func_param_);
-                // increments by one for each call to distfunc
-                last_query_stats.base_layer_distance_computations++; 
 
                 if (top_candidates.size() < ef_construction_ || lowerBound > dist1) {
                     candidateSet.emplace(-dist1, candidate_id);
@@ -388,6 +383,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
             candidate_set.pop();
 
+            // increments by one per node processed
+            last_query_stats.base_layer_visited_count++;  
+
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
             size_t size = getListCount((linklistsizeint*)data);
@@ -417,6 +415,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
                     char *currObj1 = (getDataByInternalId(candidate_id));
                     dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
+                    // increments by one for each call to distfunc
+                    last_query_stats.base_layer_distance_computations++;
 
                     bool flag_consider_candidate;
                     if (!bare_bone_search && stop_condition) {
