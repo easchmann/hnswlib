@@ -950,6 +950,18 @@ PYBIND11_PLUGIN(hnswlib) {
         .def("resize_index", &Index<float>::resizeIndex, py::arg("new_size"))
         .def("get_max_elements", &Index<float>::getMaxElements)
         .def("get_current_count", &Index<float>::getCurrentCount)
+
+        // added for query analysis
+        .def("get_last_query_stats", []() {
+            py::dict result;
+            result["entry_point_distance"] = hnswlib::last_query_stats.entry_point_distance;
+            result["base_layer_entry_distance"] = hnswlib::last_query_stats.base_layer_entry_distance;
+            result["upper_layer_distance_computations"] = hnswlib::last_query_stats.upper_layer_distance_computations;
+            result["base_layer_visited_count"] = hnswlib::last_query_stats.base_layer_visited_count;
+            result["base_layer_distance_computations"] = hnswlib::last_query_stats.base_layer_distance_computations;
+            return result;
+        })
+
         .def_readonly("space", &Index<float>::space_name)
         .def_readonly("dim", &Index<float>::dim)
         .def_readwrite("num_threads", &Index<float>::num_threads_default)

@@ -11,6 +11,27 @@
 #include <memory>
 
 namespace hnswlib {
+
+// instrumentation for query analysis
+
+struct QueryStats {
+    // upper layer stats
+    float entry_point_distance = 0.0;              // distance from query to global entry point
+    float base_layer_entry_distance = 0.0;         // distance after upper layer descent
+    size_t upper_layer_distance_computations = 0;
+    // size_t layer_visit_counts[MAX_LAYERS] = {};
+    // sized to maxlevel_ at query time
+    std::vector<size_t> layer_visit_counts;         // visits per upper layer
+
+    // base layer stats (filled in by searchBaseLayerST)
+    size_t base_layer_visited_count = 0;
+    size_t base_layer_distance_computations = 0;
+
+    // TODO: maybe add traces at some point??
+};
+inline thread_local QueryStats last_query_stats;
+
+
 typedef unsigned int tableint;
 typedef unsigned int linklistsizeint;
 
@@ -72,27 +93,6 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     std::mutex deleted_elements_lock;  // lock for deleted_elements
     std::unordered_set<tableint> deleted_elements;  // contains internal ids of deleted elements
-
-
-    // instrumentation for query analysis
-
-    struct QueryStats {
-        // upper layer stats
-        dist_t entry_point_distance = 0.0;              // distance from query to global entry point
-        dist_t base_layer_entry_distance = 0.0;         // distance after upper layer descent
-        size_t upper_layer_distance_computations = 0;
-        // size_t layer_visit_counts[MAX_LAYERS] = {};
-        // sized to maxlevel_ at query time
-        std::vector<size_t> layer_visit_counts;         // visits per upper layer
-
-        // base layer stats (filled in by searchBaseLayerST)
-        size_t base_layer_visited_count = 0;
-        size_t base_layer_distance_computations = 0;
-
-        // TODO: maybe add traces at some point??
-    };
-
-    mutable thread_local QueryStats last_query_stats;
 
 
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
