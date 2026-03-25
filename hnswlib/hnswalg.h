@@ -26,6 +26,8 @@ struct QueryStats {
     // base layer stats (filled in by searchBaseLayerST)
     size_t base_layer_visited_count = 0;
     size_t base_layer_distance_computations = 0;
+    size_t candidates_remaining_at_termination = 0;
+    std::vector<float> lowerbound_trace;            // history of lowerbound per iteration
 
     // TODO: maybe add traces at some point??
 };
@@ -345,7 +347,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates;
         std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> candidate_set;
-
+        
+        std::vector<float> lowerbound_trace;
         dist_t lowerBound;
         if (bare_bone_search || 
             (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
@@ -379,12 +382,15 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 }
             }
             if (flag_stop_search) {
+                last_query_stats.candidates_remaining_at_termination = candidate_set.size();
                 break;
             }
             candidate_set.pop();
 
             // increments by one per node processed
-            last_query_stats.base_layer_visited_count++;  
+            last_query_stats.base_layer_visited_count++;
+            // record lowerBound in each iteration
+            lowerbound_trace.push_back(lowerBound);
 
             tableint current_node_id = current_node_pair.second;
             int *data = (int *) get_linklist0(current_node_id);
@@ -464,6 +470,8 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 }
             }
         }
+        
+        last_query_stats.lowerbound_trace = lowerbound_trace;
 
         visited_list_pool_->releaseVisitedList(vl);
         return top_candidates;
