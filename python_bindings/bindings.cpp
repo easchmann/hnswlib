@@ -1020,6 +1020,7 @@ PYBIND11_PLUGIN(hnswlib) {
             result["base_layer_distance_computations"] = hnswlib::last_query_stats.base_layer_distance_computations;
             result["candidates_remaining_at_termination"] = hnswlib::last_query_stats.candidates_remaining_at_termination;
             result["lowerbound_trace"] = hnswlib::last_query_stats.lowerbound_trace;
+            result["layer_visit_counts"] = hnswlib::last_query_stats.layer_visit_counts;
             return result;
         });
 
