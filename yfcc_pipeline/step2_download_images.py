@@ -1,108 +1,139 @@
 """
-Step 2 of the YFCC-DINO pipeline.
-
 Downloads images from the Flickr URLs sampled in step 1.
+
+Processes the CSV in chunks and flushes a partial manifest after each one,
+so it's safe to kill and resume at any point. Also supports Slurm job arrays
+via --task_id / --num_tasks so the work can be split across multiple nodes.
+
+run merge_manifests.py to consolidate after all array tasks finish
+
+Output:
+    data/yfcc_sampled/images/{year}/{photo_id}.jpg
+    data/yfcc_sampled/downloaded_manifest.csv  (or per-task partial CSVs)
 
 Requirements:
     pip install requests tqdm pandas pillow
 """
 
 import os
+import time
+import argparse
 import requests
 import pandas as pd
+from io import BytesIO
 from tqdm import tqdm
 from PIL import Image, ImageFile
-from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
 
-# allow truncated images as long as there is enough information to decode something meaningful
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-# parameters
-SAMPLED_CSV  = 'data/yfcc_sampled/sampled_urls.csv'
-IMAGE_DIR    = 'data/yfcc_sampled/images'
-N_WORKERS    = 32
-TIMEOUT      = 15
-MIN_KB       = 5
+parser = argparse.ArgumentParser()
+parser.add_argument('--sampled_csv',  default='data/yfcc_sampled/sampled_urls.csv')
+parser.add_argument('--image_dir',    default='data/yfcc_sampled/images')
+parser.add_argument('--manifest_out', default='data/yfcc_sampled/downloaded_manifest.csv')
+parser.add_argument('--n_workers',    type=int, default=64)
+parser.add_argument('--timeout',      type=int, default=15)
+parser.add_argument('--min_kb',       type=int, default=5)
+parser.add_argument('--chunk_size',   type=int, default=50_000)
+parser.add_argument('--task_id',      type=int, default=0)
+parser.add_argument('--num_tasks',    type=int, default=1)
+args = parser.parse_args()
 
-os.makedirs(IMAGE_DIR, exist_ok=True)
+os.makedirs(args.image_dir, exist_ok=True)
 
-df = pd.read_csv(SAMPLED_CSV)
-print(f"Loaded {len(df):,} URLs")
-print(df.groupby('year').size().to_string())
+df_all = pd.read_csv(args.sampled_csv)
+print(f"loaded {len(df_all):,} URLs")
+
+# split work across array tasks if running as a Slurm array
+if args.num_tasks > 1:
+    df_all = df_all.iloc[args.task_id::args.num_tasks].reset_index(drop=True)
+    print(f"task {args.task_id}/{args.num_tasks}: {len(df_all):,} rows")
+    task_manifest = args.manifest_out.replace('.csv', f'_task{args.task_id:04d}.csv')
+else:
+    task_manifest = args.manifest_out
+
+print(df_all.groupby('year').size().to_string())
+
 
 def download_one(row):
     year     = int(row['year'])
+    month    = int(row.get('month', 0))
     photo_id = str(row['photoid'])
     url      = str(row['downloadurl'])
 
-    year_dir = os.path.join(IMAGE_DIR, str(year))
+    year_dir = os.path.join(args.image_dir, str(year))
     os.makedirs(year_dir, exist_ok=True)
     out_path = os.path.join(year_dir, f'{photo_id}.jpg')
 
-    if os.path.exists(out_path) and os.path.getsize(out_path) > MIN_KB * 1024:
-        return 'skip'
+    if os.path.exists(out_path) and os.path.getsize(out_path) > args.min_kb * 1024:
+        return ('skip', photo_id, year, month, out_path)
 
-    # try original URL and size variants
-    base_parts = url.rsplit('.', 1)
-    ext = base_parts[-1] if len(base_parts) > 1 else 'jpg'
-    base = base_parts[0]
-    urls_to_try = [f"{base}_z.{ext}", url, f"{base}_m.{ext}"]
+    # try a few size variants of the Flickr URL
+    base, _, ext = url.rpartition('.')
+    ext = ext or 'jpg'
+    urls_to_try = [f'{base}_z.{ext}', url, f'{base}_m.{ext}']
 
     for attempt_url in urls_to_try:
         try:
-            r = requests.get(attempt_url, timeout=TIMEOUT,
+            r = requests.get(attempt_url, timeout=args.timeout,
                              headers={'User-Agent': 'Mozilla/5.0'})
-            if r.status_code != 200:
-                continue
-            if len(r.content) < MIN_KB * 1024:
+            if r.status_code != 200 or len(r.content) < args.min_kb * 1024:
                 continue
             img = Image.open(BytesIO(r.content))
             img.verify()
             with open(out_path, 'wb') as f:
                 f.write(r.content)
-            return 'ok'
+            return ('ok', photo_id, year, month, out_path)
         except Exception:
-            time.sleep(0.5)
-            continue
-    return 'failed'
+            time.sleep(0.3)
 
-rows    = df.to_dict('records')
+    return ('failed', photo_id, year, month, None)
+
+
+rows = df_all.to_dict('records')
 results = {'ok': 0, 'skip': 0, 'failed': 0}
+manifest_rows = []
 
-print(f"\nDownloading {len(rows):,} images ({N_WORKERS} threads)...")
-print("Safe to Ctrl+C and resume\n")
+# pick up where we left off if the task manifest already exists
+if os.path.exists(task_manifest):
+    existing = pd.read_csv(task_manifest)
+    manifest_rows = existing.to_dict('records')
+    print(f"resuming - found {len(manifest_rows):,} existing entries")
 
-with ThreadPoolExecutor(max_workers=N_WORKERS) as executor:
-    futures = {executor.submit(download_one, row): row for row in rows}
-    with tqdm(total=len(rows)) as pbar:
-        for future in as_completed(futures):
-            result = future.result()
-            key    = result if result in results else 'failed'
-            results[key] += 1
-            pbar.set_postfix(results)
-            pbar.update(1)
+print(f"\ndownloading {len(rows):,} images with {args.n_workers} threads")
+print("safe to kill and resubmit\n")
 
-print(f"\nResults: {results}")
+chunk_start = 0
+while chunk_start < len(rows):
+    chunk = rows[chunk_start : chunk_start + args.chunk_size]
 
-# save manifest
-manifest = []
-for year in range(2007, 2014):
-    year_dir = os.path.join(IMAGE_DIR, str(year))
-    if not os.path.exists(year_dir):
-        continue
-    for fname in os.listdir(year_dir):
-        if fname.endswith('.jpg'):
-            manifest.append({
-                'photo_id': fname.replace('.jpg', ''),
-                'year':     year,
-                'path':     os.path.join(year_dir, fname),
-            })
+    with ThreadPoolExecutor(max_workers=args.n_workers) as executor:
+        futures = {executor.submit(download_one, r): r for r in chunk}
+        with tqdm(total=len(chunk), desc=f"chunk {chunk_start // args.chunk_size + 1}") as pbar:
+            for future in as_completed(futures):
+                status, photo_id, year, month, path = future.result()
+                results[status if status in results else 'failed'] += 1
+                if path:
+                    manifest_rows.append({
+                        'photo_id': photo_id,
+                        'year':     year,
+                        'month':    month,
+                        'path':     path,
+                    })
+                pbar.set_postfix(results)
+                pbar.update(1)
 
-df_manifest = pd.DataFrame(manifest)
-manifest_path = 'data/yfcc_sampled/downloaded_manifest.csv'
-df_manifest.to_csv(manifest_path, index=False)
-print(f"\nManifest: {len(df_manifest):,} images")
-print(df_manifest.groupby('year').size().to_string())
-print("\nStep 2 complete.")
+    pd.DataFrame(manifest_rows).to_csv(task_manifest, index=False)
+    print(f"  flushed manifest: {len(manifest_rows):,} rows | {results}")
+    chunk_start += args.chunk_size
+
+print(f"\nfinal counts: {results}")
+
+if args.num_tasks == 1:
+    df_manifest = pd.DataFrame(manifest_rows)
+    df_manifest.to_csv(args.manifest_out, index=False)
+    print(f"\nmanifest saved: {len(df_manifest):,} images")
+    print(df_manifest.groupby('year').size().to_string())
+else:
+    print(f"\ntask {args.task_id} done - partial manifest at {task_manifest}")
+    print("run merge_manifests.py once all tasks complete")

@@ -1,87 +1,78 @@
 """
-Step 3 of the YFCC-DINO pipeline.
+Extracts 384-dim DINO ViT-S/16 embeddings from downloaded YFCC images,
+matching the feature extractor used in the DeDrift paper.
 
-Extracts 384-dimensional DINO ViT-S/16 embeddings from the downloaded
-YFCC images, matching the feature extractor used in the DeDrift paper.
-
-I ran this on the HPC cluster I have access to via RACKlette
+To avoid OOM on large datasets, images are processed in shards per year.
+Each shard is saved immediately, so the job can be safely requeued - already
+completed shards are skipped. After all shards are done, the per-year files
+are merged, the random rotation and quantization are applied, and the shard
+intermediates are cleaned up to save space. The raw images are also deleted
+at the end since we only need the embeddings going forward.
 
 Output:
-    data/yfcc_sampled/embeddings/{year}_embeddings.npy  — float32 (N, 384)
-    data/yfcc_sampled/embeddings/{year}_photo_ids.npy   — str array (N,)
-    data/yfcc_sampled/embeddings/metadata.csv           — photo_id, year, month
-
-Post-processing (matching DeDrift):
-    - Apply random rotation to all embeddings
-    - Quantize to 8 bits (rescale to uint8)
-    - Save final combined arrays
+    data/yfcc_sampled/embeddings/embeddings_float32.npy  - (N, 384) memory-mapped
+    data/yfcc_sampled/embeddings/metadata.csv            - photo_id, year, month
+    data/yfcc_sampled/embeddings/rotation_matrix.npy
+    data/yfcc_sampled/embeddings/quant_min.npy / quant_max.npy
 
 Requirements:
-    pip install torch torchvision timm tqdm pandas pillow numpy
+    pip install torch torchvision tqdm pandas pillow numpy
 """
 
 import os
+import shutil
+import argparse
+import warnings
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image, ImageFile
 from tqdm import tqdm
-import argparse
-import warnings
+
 warnings.filterwarnings('ignore')
-#allow truncated images as long as they contain enough information to decode something meaningful
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-# parameters
-parser = argparse.ArgumentParser(description='Extract DINO embeddings')
+parser = argparse.ArgumentParser()
 parser.add_argument('--image_dir',   default='data/yfcc_sampled/images')
 parser.add_argument('--manifest',    default='data/yfcc_sampled/downloaded_manifest.csv')
 parser.add_argument('--output_dir',  default='data/yfcc_sampled/embeddings')
 parser.add_argument('--batch_size',  type=int, default=256)
 parser.add_argument('--num_workers', type=int, default=8)
+parser.add_argument('--shard_size',  type=int, default=200_000)
+parser.add_argument('--years',       nargs='+', type=int, default=list(range(2007, 2014)))
 args = parser.parse_args()
 
-IMAGE_DIR    = args.image_dir
-MANIFEST_CSV = args.manifest
-OUTPUT_DIR   = args.output_dir
-BATCH_SIZE   = args.batch_size
-NUM_WORKERS  = args.num_workers
-YEARS        = list(range(2007, 2014))
-RANDOM_SEED  = 42
+SHARD_DIR   = os.path.join(args.output_dir, 'shards')
+RANDOM_SEED = 42
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(SHARD_DIR, exist_ok=True)
 np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 
-print(f"image_dir:   {IMAGE_DIR}")
-print(f"manifest:    {MANIFEST_CSV}")
-print(f"output_dir:  {OUTPUT_DIR}")
-print(f"batch_size:  {BATCH_SIZE}")
-print(f"num_workers: {NUM_WORKERS}")
+print(f"image_dir:   {args.image_dir}")
+print(f"manifest:    {args.manifest}")
+print(f"output_dir:  {args.output_dir}")
+print(f"batch_size:  {args.batch_size}, num_workers: {args.num_workers}, shard_size: {args.shard_size:,}")
+print(f"years:       {args.years}")
 
-# device
 if torch.cuda.is_available():
     device = torch.device('cuda')
-    print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    print(f"\nGPU: {torch.cuda.get_device_name(0)}")
 elif torch.backends.mps.is_available():
     device = torch.device('mps')
-    print("Using Apple MPS")
+    print("\nApple MPS")
 else:
     device = torch.device('cpu')
-    print("Using CPU (slow — consider using HPC GPU)")
+    print("\nCPU (this will be slow)")
 
-# load DINO ViT-S/16 
-print("\nLoading DINO ViT-S/16 model...")
-model = torch.hub.load('facebookresearch/dino:main', 'dino_vits16',
-                       pretrained=True)
+print("loading DINO ViT-S/16...")
+model = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=True)
 model = model.to(device)
 model.eval()
-print(f"  Model loaded, embedding dim = 384")
+print("  embedding dim: 384")
 
-# image transforms (standard DINO preprocessing)
 transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
@@ -90,7 +81,7 @@ transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225]),
 ])
 
-# dataset
+
 class YFCCDataset(Dataset):
     def __init__(self, paths, photo_ids, transform):
         self.paths     = paths
@@ -101,125 +92,151 @@ class YFCCDataset(Dataset):
         return len(self.paths)
 
     def __getitem__(self, idx):
-        path = self.paths[idx]
         try:
-            img = Image.open(path).convert('RGB')
+            img = Image.open(self.paths[idx]).convert('RGB')
             return self.transform(img), idx
         except Exception:
-            # return blank image for broken files
             return torch.zeros(3, 224, 224), idx
 
-# load manifest
-df_manifest = pd.read_csv(MANIFEST_CSV)
-print(f"\nLoaded manifest: {len(df_manifest):,} images")
+
+def extract_shards(year, year_df):
+    paths     = year_df['path'].tolist()
+    photo_ids = year_df['photo_id'].astype(str).tolist()
+    n         = len(paths)
+
+    emb_files = []
+    ids_files = []
+
+    for shard_idx, start in enumerate(range(0, n, args.shard_size)):
+        end        = min(start + args.shard_size, n)
+        shard_size = end - start
+
+        out_emb = os.path.join(SHARD_DIR, f'{year}_shard{shard_idx:04d}_embeddings.npy')
+        out_ids = os.path.join(SHARD_DIR, f'{year}_shard{shard_idx:04d}_photo_ids.npy')
+
+        if os.path.exists(out_emb) and os.path.exists(out_ids):
+            print(f"  shard {shard_idx}: cached, skipping")
+            emb_files.append(out_emb)
+            ids_files.append(out_ids)
+            continue
+
+        print(f"  shard {shard_idx}: images {start:,}-{end:,}")
+
+        dataset    = YFCCDataset(paths[start:end], photo_ids[start:end], transform)
+        dataloader = DataLoader(dataset, batch_size=args.batch_size,
+                                num_workers=args.num_workers, pin_memory=True,
+                                shuffle=False)
+
+        shard_embs = np.zeros((shard_size, 384), dtype='float32')
+        shard_ids  = [''] * shard_size
+
+        with torch.no_grad():
+            for imgs, indices in tqdm(dataloader, desc=f'    shard {shard_idx}', leave=False):
+                embs = model(imgs.to(device)).cpu().numpy()
+                for i, idx in enumerate(indices.numpy()):
+                    shard_embs[idx] = embs[i]
+                    shard_ids[idx]  = photo_ids[start + idx]
+
+        np.save(out_emb, shard_embs)
+        np.save(out_ids, np.array(shard_ids))
+        print(f"    saved {shard_size:,} embeddings")
+
+        emb_files.append(out_emb)
+        ids_files.append(out_ids)
+
+    return emb_files, ids_files
+
+
+def merge_year(year, emb_files, ids_files):
+    out_emb = os.path.join(args.output_dir, f'{year}_embeddings.npy')
+    out_ids = os.path.join(args.output_dir, f'{year}_photo_ids.npy')
+
+    if os.path.exists(out_emb) and os.path.exists(out_ids):
+        print(f"  {year}: merged file already exists, loading")
+        return np.load(out_emb), np.load(out_ids).tolist()
+
+    embs = np.vstack([np.load(f) for f in emb_files])
+    ids  = [pid for f in ids_files for pid in np.load(f).tolist()]
+
+    np.save(out_emb, embs)
+    np.save(out_ids, np.array(ids))
+    print(f"  {year}: merged {len(embs):,} embeddings")
+    return embs, ids
+
+
+# main loop
+df_manifest = pd.read_csv(args.manifest)
+print(f"\nmanifest: {len(df_manifest):,} images")
 print(df_manifest.groupby('year').size().to_string())
 
-# extract embeddings per year 
 all_embeddings = []
 all_photo_ids  = []
 all_years      = []
-all_months     = []
 
-for year in YEARS:
-    year_df   = df_manifest[df_manifest['year'] == year].reset_index(drop=True)
-    out_emb   = os.path.join(OUTPUT_DIR, f'{year}_embeddings.npy')
-    out_ids   = os.path.join(OUTPUT_DIR, f'{year}_photo_ids.npy')
+for year in args.years:
+    year_df = df_manifest[df_manifest['year'] == year].reset_index(drop=True)
+    print(f"\nyear {year}: {len(year_df):,} images")
+    emb_files, ids_files = extract_shards(year, year_df)
+    embs, ids            = merge_year(year, emb_files, ids_files)
+    all_embeddings.append(embs)
+    all_photo_ids.extend(ids)
+    all_years.extend([year] * len(embs))
 
-    if os.path.exists(out_emb) and os.path.exists(out_ids):
-        print(f"\nYear {year}: loading cached embeddings...")
-        embs = np.load(out_emb)
-        ids  = np.load(out_ids)
-        all_embeddings.append(embs)
-        all_photo_ids.extend(ids.tolist())
-        all_years.extend([year] * len(embs))
-        continue
+print(f"\ncombining {len(all_years):,} embeddings across all years...")
+embeddings_all = np.vstack(all_embeddings)
 
-    print(f"\nYear {year}: extracting embeddings for {len(year_df):,} images...")
+# random rotation (matching DeDrift preprocessing)
+rot_path = os.path.join(args.output_dir, 'rotation_matrix.npy')
+if os.path.exists(rot_path):
+    Q = np.load(rot_path)
+    print("loaded existing rotation matrix")
+else:
+    np.random.seed(RANDOM_SEED)
+    Q, _ = np.linalg.qr(np.random.randn(384, 384).astype('float32'))
+    np.save(rot_path, Q)
+    print("generated random rotation matrix")
 
-    paths     = year_df['path'].tolist()
-    photo_ids = year_df['photo_id'].astype(str).tolist()
+# apply rotation in chunks and write directly to a memory-mapped file
+# avoids keeping two full copies of the embedding array in RAM at once
+print("applying rotation (chunked to save RAM)...")
+out_f32 = os.path.join(args.output_dir, 'embeddings_float32.npy')
+fp = np.lib.format.open_memmap(out_f32, mode='w+', dtype='float32', shape=embeddings_all.shape)
+chunk = 500_000
+for i in range(0, len(embeddings_all), chunk):
+    fp[i:i+chunk] = embeddings_all[i:i+chunk] @ Q
+fp.flush()
+del embeddings_all
 
-    dataset    = YFCCDataset(paths, photo_ids, transform)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE,
-                            num_workers=NUM_WORKERS, pin_memory=True,
-                            shuffle=False)
+# quantization range (saved for applying to query embeddings later)
+emb_min = fp.min(axis=0, keepdims=True)
+emb_max = fp.max(axis=0, keepdims=True)
+np.save(os.path.join(args.output_dir, 'quant_min.npy'), emb_min)
+np.save(os.path.join(args.output_dir, 'quant_max.npy'), emb_max)
 
-    year_embeddings = np.zeros((len(dataset), 384), dtype='float32')
-    year_ids        = [''] * len(dataset)
-
-    with torch.no_grad():
-        for batch_imgs, batch_indices in tqdm(dataloader,
-                                               desc=f'  {year}',
-                                               leave=False):
-            batch_imgs = batch_imgs.to(device)
-            # DINO forward pass — returns CLS token (384-dim)
-            embs = model(batch_imgs).cpu().numpy()
-            for i, idx in enumerate(batch_indices.numpy()):
-                year_embeddings[idx] = embs[i]
-                year_ids[idx]        = photo_ids[idx]
-
-    # save per-year arrays
-    np.save(out_emb, year_embeddings)
-    np.save(out_ids, np.array(year_ids))
-    print(f"  Saved {len(year_embeddings):,} embeddings for {year}")
-
-    all_embeddings.append(year_embeddings)
-    all_photo_ids.extend(year_ids)
-    all_years.extend([year] * len(year_embeddings))
-
-# combine all years
-print("\nCombining all years...")
-embeddings_all = np.vstack(all_embeddings)  # (N_total, 384)
-print(f"  Total embeddings: {embeddings_all.shape}")
-
-# post-processing: random rotation (matching DeDrift)
-print("Applying random rotation...")
-np.random.seed(RANDOM_SEED)
-# random orthogonal matrix via QR decomposition
-rand_mat  = np.random.randn(384, 384).astype('float32')
-Q, _      = np.linalg.qr(rand_mat)
-embeddings_rotated = embeddings_all @ Q
-print(f"  Rotation applied, shape: {embeddings_rotated.shape}")
-
-# post-processing: 8-bit quantization (matching DeDrift)
-print("Quantizing to 8 bits...")
-# normalize to [0, 1] then scale to [0, 255]
-emb_min  = embeddings_rotated.min(axis=0, keepdims=True)
-emb_max  = embeddings_rotated.max(axis=0, keepdims=True)
-emb_norm = (embeddings_rotated - emb_min) / (emb_max - emb_min + 1e-8)
-embeddings_uint8 = (emb_norm * 255).astype('uint8')
-
-# also save float32 version for experiments (before quantization)
-embeddings_float32 = embeddings_rotated.astype('float32')
-
-# save final combined dataset
-print("\nSaving final dataset...")
-
-# save rotation matrix so we can apply it to new queries consistently
-np.save(os.path.join(OUTPUT_DIR, 'rotation_matrix.npy'), Q)
-np.save(os.path.join(OUTPUT_DIR, 'quant_min.npy'), emb_min)
-np.save(os.path.join(OUTPUT_DIR, 'quant_max.npy'), emb_max)
-
-# float32 version (for use with hnswlib which needs float32)
-np.save(os.path.join(OUTPUT_DIR, 'embeddings_float32.npy'), embeddings_float32)
-
-# metadata: photo_id, year, month
-df_meta = pd.read_csv(MANIFEST_CSV)
+# metadata
+df_meta = pd.read_csv(args.manifest)
 df_meta['photo_id'] = df_meta['photo_id'].astype(str)
-df_ordered = pd.DataFrame({
-    'photo_id': [str(p) for p in all_photo_ids],
-    'year':     all_years,
-})
-df_ordered = df_ordered.merge(
-    df_meta[['photo_id', 'year', 'month']] if 'month' in df_meta.columns
-    else df_meta[['photo_id', 'year']],
-    on=['photo_id', 'year'], how='left'
-)
-df_ordered.to_csv(os.path.join(OUTPUT_DIR, 'metadata.csv'), index=False)
+merge_cols = ['photo_id', 'year'] + (['month'] if 'month' in df_meta.columns else [])
 
-print(f"\nFinal dataset saved to {OUTPUT_DIR}/")
-print(f"  embeddings_float32.npy : {embeddings_float32.shape}, float32")
-print(f"  metadata.csv           : {len(df_ordered):,} rows")
-print(f"\nYear distribution:")
+df_ordered = pd.DataFrame({'photo_id': [str(p) for p in all_photo_ids], 'year': all_years})
+df_ordered = df_ordered.merge(df_meta[merge_cols], on=['photo_id', 'year'], how='left')
+df_ordered.to_csv(os.path.join(args.output_dir, 'metadata.csv'), index=False)
+
+print(f"\nfinal dataset:")
+print(f"  embeddings_float32.npy: {fp.shape}, float32")
+print(f"  metadata.csv: {len(df_ordered):,} rows")
 print(df_ordered.groupby('year').size().to_string())
-print("\nStep 3 complete.")
+
+# clean up shard intermediates - no longer needed now that per-year files are merged
+print("\ncleaning up shards...")
+shutil.rmtree(SHARD_DIR)
+print(f"  removed {SHARD_DIR}")
+
+# delete raw images - we only need the embeddings from here on
+# this frees ~320GB on scratch
+print("deleting raw images to free disk space...")
+shutil.rmtree(args.image_dir)
+print(f"  removed {args.image_dir}")
+print("  (re-run step2 if you need them back)")
+
+print("\ndone.")
