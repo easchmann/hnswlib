@@ -1,0 +1,13 @@
+param,value
+dataset,YFCC-DINO
+dim,384
+n_index,500000
+n_queries,1000
+shift_sigmas,"[0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 16.0]"
+displacement_magnitude,6.3047
+ef_sweep,"[10, 20, 50, 100, 200, 500]"
+M,16
+ef_construction,200
+k,10
+drift_direction,mean_2007_to_mean_2013
+rng_seed,42

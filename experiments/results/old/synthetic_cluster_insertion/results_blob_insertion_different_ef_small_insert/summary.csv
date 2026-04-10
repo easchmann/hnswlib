@@ -1,0 +1,7 @@
+index_condition,query_condition,mean_recall,mean_ep_distance,mean_base_layer_entry_distance,mean_upper_layer_dist_computations,mean_layer1_visits,mean_base_visited,mean_base_dist_computations,mean_candidates_remaining,n_queries
+incremental,in_distribution,0.0384,2363.5185,1524.3504,127.1618,27.3698,27.3634,831.799,69.1226,5000
+incremental,near,0.0296,2494.3186,1641.676,125.8062,27.1656,27.3882,824.0452,69.111,5000
+incremental,far,0.1596,5909.4685,3971.9987,110.0126,25.5228,33.7808,943.1196,101.6362,5000
+full_rebuild,in_distribution,0.0395,2287.9969,1520.4712,126.6436,27.5168,27.2148,827.4094,68.701,5000
+full_rebuild,near,0.0298,2458.5507,1632.9154,123.407,26.4294,27.4634,826.3912,68.708,5000
+full_rebuild,far,0.1706,5258.6093,3543.1834,105.3842,23.8422,32.0826,893.4984,94.4768,5000

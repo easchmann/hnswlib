@@ -1,0 +1,7 @@
+index_condition,query_condition,mean_recall,mean_ep_distance,mean_layer1_visits,mean_base_visited,n_queries
+incremental,in_distribution,0.2868,6229.9334,29.226,57.006,1000
+incremental,near,0.2558,3435.7941,28.264,58.014,1000
+incremental,far,0.2413,3748.0195,27.904,58.533,1000
+full_rebuild,in_distribution,0.298,6256.8059,28.717,57.071,1000
+full_rebuild,near,0.2491,3461.7274,27.282,58.094,1000
+full_rebuild,far,0.2443,3841.2621,29.649,59.729,1000

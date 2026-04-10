@@ -1,0 +1,5 @@
+window,query_id,recall,entry_point_distance,base_layer_entry_distance,upper_layer_dist_comps,base_layer_visited,base_layer_dist_comps,candidates_remaining,trace_length,layer_0_visits,layer_1_visits,layer_2_visits,layer_3_visits,layer_4_visits,layer_5_visits
+in_distribution,999.5,0.9989,287233.337,58437.7785,89.28,200.2945,2482.245,249.9975,200.2945,0.0,34.242,29.8825,23.9785,1.177,0.0
+mild_drift,999.5,0.99505,132315.803,79692.3835,75.768,200.4895,3024.257,322.8595,200.4895,0.0,32.302,28.731,13.6835,1.0515,0.0
+moderate_drift,999.5,0.9779,298448.9135,107235.9995,83.5745,201.752,2734.073,317.016,201.752,0.0,32.949,26.231,23.3135,1.081,0.0
+large_drift,999.5,0.9767,331688.0655,82430.6565,85.0235,202.2395,2721.145,307.2285,202.2395,0.0,33.687,24.934,25.2065,1.196,0.0
