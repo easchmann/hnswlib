@@ -1,7 +1,6 @@
 """
 Merges the per-task manifest CSVs written by step2 into a single
-downloaded_manifest.csv. Run this after all array tasks from run_step2.sh
-have finished.
+downloaded_manifest.csv.
 
 Usage:
     python yfcc_pipeline/merge_manifests.py
