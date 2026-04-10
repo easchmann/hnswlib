@@ -3,11 +3,9 @@ Extracts 384-dim DINO ViT-S/16 embeddings from downloaded YFCC images,
 matching the feature extractor used in the DeDrift paper.
 
 To avoid OOM on large datasets, images are processed in shards per year.
-Each shard is saved immediately, so the job can be safely requeued - already
-completed shards are skipped. After all shards are done, the per-year files
-are merged, the random rotation and quantization are applied, and the shard
-intermediates are cleaned up to save space. The raw images are also deleted
-at the end since we only need the embeddings going forward.
+Each shard is saved immediately, so the job can be safely requeued. already completed shards are skipped. 
+After all shards are done, the per-year files are merged, the random rotation and quantization are applied, and the shard
+intermediates are cleaned up to save space. The raw images are also deleted at the end since we only need the embeddings going forward.
 
 Output:
     data/yfcc_sampled/embeddings/embeddings_float32.npy  - (N, 384) memory-mapped
@@ -15,8 +13,6 @@ Output:
     data/yfcc_sampled/embeddings/rotation_matrix.npy
     data/yfcc_sampled/embeddings/quant_min.npy / quant_max.npy
 
-Requirements:
-    pip install torch torchvision tqdm pandas pillow numpy
 """
 
 import os

@@ -11,8 +11,6 @@ Output:
     data/yfcc_sampled/images/{year}/{photo_id}.jpg
     data/yfcc_sampled/downloaded_manifest.csv  (or per-task partial CSVs)
 
-Requirements:
-    pip install requests tqdm pandas pillow
 """
 
 import os
