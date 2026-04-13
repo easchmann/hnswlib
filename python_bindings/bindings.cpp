@@ -975,6 +975,40 @@ PYBIND11_PLUGIN(hnswlib) {
           return index.index_inited ? index.appr_alg->M_ : 0;
         })
 
+         // added for adaptation functions
+        .def("set_entry_point", [](Index<float> &index, size_t node_id) {
+            index.appr_alg->setEntryPoint((hnswlib::tableint)node_id);
+        }, py::arg("node_id"))
+
+        .def("get_nodes_at_layer", [](Index<float> &index, int min_layer) {
+            return index.appr_alg->getNodesAtLayer(min_layer);
+        }, py::arg("min_layer") = 1)
+
+        .def("promote_node", [](Index<float> &index, size_t node_id, int target_layer) -> size_t {
+            return (size_t)index.appr_alg->promoteNodeToLayer(
+                (hnswlib::tableint)node_id, target_layer);
+        }, py::arg("node_id"), py::arg("target_layer") = 1)
+
+        .def("add_directed_edges", [](Index<float> &index,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> target,
+                                    int layer,
+                                    size_t k_nodes) {
+            auto buf = target.request();
+            if (buf.ndim != 1)
+                throw std::runtime_error("add_directed_edges: target must be a 1-D array");
+            index.appr_alg->addDirectedEdges((void *)buf.ptr, layer, k_nodes);
+        }, py::arg("target"), py::arg("layer") = 1, py::arg("k_nodes") = 16)
+
+        .def("rewire_local_neighbourhood", [](Index<float> &index,
+                                            py::array_t<float, py::array::c_style | py::array::forcecast> target,
+                                            int layer,
+                                            size_t k_nodes) {
+            auto buf = target.request();
+            if (buf.ndim != 1)
+                throw std::runtime_error("rewire_local_neighbourhood: target must be a 1-D array");
+            index.appr_alg->rewireLocalNeighbourhood((void *)buf.ptr, layer, k_nodes);
+        }, py::arg("target"), py::arg("layer") = 1, py::arg("k_nodes") = 32)
+
         .def(py::pickle(
             [](const Index<float> &ind) {  // __getstate__
                 return py::make_tuple(ind.getIndexParams()); /* Return dict (wrapped in a tuple) that fully encodes state of the Index object */

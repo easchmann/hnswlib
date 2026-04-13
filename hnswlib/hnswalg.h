@@ -1475,5 +1475,255 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
         std::cout << "integrity ok, checked " << connections_checked << " connections\n";
     }
+
+    // set global entry point to a specific node (already existing in the index)
+    void setEntryPoint(tableint new_entry_point){
+        if (new_entry_point >= cur_element_count){
+            throw std::runtime_error("setEntryPoint: node ID out of range");
+        }
+        std::unique_lock<std::mutex> lock(global);
+        enterpoint_node_ = new_entry_point;
+
+        //if new entry point is on a higher level than the current entry point, update maxlevel
+        int node_level = element_levels_[new_entry_point];
+        if (node_level > maxlevel_){
+            maxlevel_ = node_level;
+        }
+    }
+
+    // returns the internal ids of all nodes that exist at >=min_layer
+    //note: internal ids != external labels -> can be converted using getExternalLabel()
+    std::vector<tableint> getNodesAtLayer(int min_layer) const{
+        std::vector<tableint> result;
+        // reserve memor to avoid reallocation, rough estimate of 10% nodes per layer
+        result.reserve(cur_element_count/10);
+
+        for (tableint i=0; i<cur_element_count; i++){
+            if (element_levels_[i]>=min_layer){
+                result.push_back(i);
+            }
+        }
+        return result;
+
+    }
+
+    // promote an existing node to target_level and wire it into the graph at every new level/layer
+    // using the standard neighbour selection heuristic
+    // only difference to addPoint is that the node already exisits in the index and we only add 
+    // upper-layer connections for a node that previously existed at lower levels only.
+    tableint promoteNodeToLayer(tableint node_id, int target_level){
+        if (node_id >= cur_element_count){
+            throw std::runtime_error("promoteNodeToLayer: node ID out of range");
+        }
+        if (target_level < 1){
+            throw std::runtime_error("promoteNodeToLayer: target layer must be >=1");
+        }
+
+        int curr_level = element_levels_[node_id];
+        if (curr_level >= target_level){
+            //node already at desired layer, no-op
+            return node_id;
+        }
+
+        //allocate a bigger link list block to cover the new levels
+        // layout: $target_level chunks of size_links_per_element (one per upper layer)
+        char *new_linklist = (char *)malloc(size_links_per_element_ * target_level + 1);
+        if (new_linklist == nullptr){
+            throw std::runtime_error("promoteNodeToLayer: malloc failed");
+        }
+        memset(new_linklist, 0, size_links_per_element_ * target_level +1);
+
+        // copy all existing links to new block
+        if (curr_level > 0 && linkLists_[node_id]!=nullptr){
+            memcpy(new_linklist, linkLists_[node_id], size_links_per_element_ * curr_level);
+            free(linkLists_[node_id]);
+    
+        }
+        linkLists_[node_id] = new_linklist;
+        element_levels_[node_id] = target_level;
+
+        //descend from the current entry point to target_level + 1 to find good node for entry node for the target level
+        tableint curr_obj = enterpoint_node_;
+        dist_t curr_dist = fstdistfunc_(getDataByInternalId(node_id), getDataByInternalId(curr_obj), dist_func_param_);
+
+        for (int level= maxlevel_; level>target_level; level--){
+            // greedy best-first search at a single layer. 
+            // keeps running as long as it finds a better node.  If any neighbour turns out to be closer to node_id than the current best, changed is set back to true and the loop runs again from that new node. 
+            // after a full iteration through all neighbours finds no better node, loop exits (local minimum -> closest reachable node at layer given the graph structure)
+            bool changed = true;
+            while (changed){
+                changed = false;
+                std::unique_lock<std::mutex> lock(link_list_locks_[curr_obj]);
+                // array stored as [count | neighbour0 | neighbour1 | ...]
+                int *data = (int *)get_linklist(curr_obj, level);
+                // reads the count from the first entry
+                int size = getListCount((linklistsizeint *)data);
+                // data + 1 steps past count entry to where the actual neighbour ids start
+                tableint *neighbours = (tableint *)(data + 1);
+                for (int i=0; i < size; i++){
+                    tableint candidate = neighbours[i];
+                    dist_t dist = fstdistfunc_(getDataByInternalId(node_id), getDataByInternalId(candidate), dist_func_param_);
+                    if (dist < curr_dist){
+                        curr_dist = dist;
+                        curr_obj= candidate;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        // wire the node into each new level top down (same as in addPoint)
+        for (int level = std::min(target_level, maxlevel_); level > curr_level; level--){
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(curr_obj, getDataByInternalId(node_id), level);
+            
+            curr_obj = mutuallyConnectNewElement(getDataByInternalId(node_id), node_id, top_candidates, level, false);
+
+        }
+        //update global entry point if it reaches new max_layer
+        // added outer brackets to determine scope and thus lifetime of the lock
+        {   std::unique_lock<std::mutex> lock(global);
+            if (target_level > maxlevel_){
+                maxlevel_ = target_level;
+                enterpoint_node_ = node_id;
+            }
+        }
+
+        return node_id;
+
+    }
+
+    // add edges from existing nodes to a target node
+    void addDirectedEdges(const void*target_data, int layer, size_t k_nodes){
+        if (layer < 1 || layer > maxlevel_){
+            throw std::runtime_error("addDirectedEdges: layer is invalid");
+        }
+
+        //descend to the target layer
+        tableint curr_obj = enterpoint_node_;
+        dist_t curr_dist = fstdistfunc_(target_data, getDataByInternalId(curr_obj), dist_func_param_);
+
+        for (int level= maxlevel_; level>layer; level--){
+            bool changed = true;
+            while (changed){
+                changed = false;
+                std::unique_lock<std::mutex> lock(link_list_locks_[curr_obj]);
+                // array stored as [count | neighbour0 | neighbour1 | ...]
+                int *data = (int *)get_linklist(curr_obj, level);
+                // reads the count from the first entry
+                int size = getListCount((linklistsizeint *)data);
+                // data + 1 steps past count entry to where the actual neighbour ids start
+                tableint *neighbours = (tableint *)(data + 1);
+                for (int i=0; i < size; i++){
+                    tableint candidate = neighbours[i];
+                    dist_t dist = fstdistfunc_(target_data, getDataByInternalId(candidate), dist_func_param_);
+                    if (dist < curr_dist){
+                        curr_dist = dist;
+                        curr_obj= candidate;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        // find k_nodes nearest nodes to target at this layer
+        // searchBaseLayer returns a max-heap (priority queue where the furthest element is at the top)
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>,  CompareByFirst> candidates = searchBaseLayer(curr_obj, target_data, layer);
+
+        std::vector<tableint> nodes_to_update;
+        nodes_to_update.reserve(k_nodes);
+
+        // candidates.top() returns the pair with the largest distance in the heap
+        std::vector<std::pair<dist_t, tableint>> all;
+        while (!candidates.empty()) {
+            all.push_back(candidates.top());
+            candidates.pop();
+        }
+        // last k_nodes elements are the nearest (smallest distance)
+        for (size_t i = std::max((size_t)0, all.size() - k_nodes); i < all.size(); i++){
+            nodes_to_update.push_back(all[i].second);
+        }
+
+        // for each selected node rerun neighbour selectio using target_data as the search centre for the heuristic to form an edge in that direction
+        //
+        for (tableint node:nodes_to_update){
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(node, target_data, layer);
+
+            mutuallyConnectNewElement(getDataByInternalId(node), node, top_candidates, layer, true);
+
+        }
+    }
+
+    void rewireLocalNeighbourhood(const void *target_data, int layer, size_t k_nodes){
+        if (layer < 1 || layer > maxlevel_){
+            throw std::runtime_error("rewireLocalNeighbourhood: layer is invalid");
+        }
+
+        //descend to the target layer
+        tableint curr_obj = enterpoint_node_;
+        dist_t curr_dist = fstdistfunc_(target_data, getDataByInternalId(curr_obj), dist_func_param_);
+
+        for (int level= maxlevel_; level>layer; level--){
+            bool changed = true;
+            while (changed){
+                changed = false;
+                std::unique_lock<std::mutex> lock(link_list_locks_[curr_obj]);
+                // array stored as [count | neighbour0 | neighbour1 | ...]
+                int *data = (int *)get_linklist(curr_obj, level);
+                // reads the count from the first entry
+                int size = getListCount((linklistsizeint *)data);
+                // data + 1 steps past count entry to where the actual neighbour ids start
+                tableint *neighbours = (tableint *)(data + 1);
+                for (int i=0; i < size; i++){
+                    tableint candidate = neighbours[i];
+                    dist_t dist = fstdistfunc_(target_data, getDataByInternalId(candidate), dist_func_param_);
+                    if (dist < curr_dist){
+                        curr_dist = dist;
+                        curr_obj= candidate;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        // find the k_nodes closest nodes at specified layer
+        std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>,  CompareByFirst> candidates = searchBaseLayer(curr_obj, target_data, layer);
+
+        std::vector<tableint> nodes_to_rewire;
+        nodes_to_rewire.reserve(k_nodes);
+
+        // candidates.top() returns the pair with the largest distance in the heap
+        std::vector<std::pair<dist_t, tableint>> all;
+        while (!candidates.empty()) {
+            all.push_back(candidates.top());
+            candidates.pop();
+        }
+        // last k_nodes elements are the nearest (smallest distance)
+        for (size_t i = std::max((size_t)0, all.size() - k_nodes); i < all.size(); i++){
+            nodes_to_rewire.push_back(all[i].second);
+        }
+
+         // recompute each node's neighbours using that node as the search centre
+        // local re-optimisation rather than adding edges toward the target. resulting connections should be optimal for the node
+        for (tableint node : nodes_to_rewire) {
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates =
+                searchBaseLayer(node, getDataByInternalId(node), layer);
+
+            // remove self from candidates to avoid self-loops
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> filtered;
+            while (!top_candidates.empty()) {
+                if (top_candidates.top().second != node)
+                    filtered.push(top_candidates.top());
+                top_candidates.pop();
+            }
+
+            if (!filtered.empty()){
+                mutuallyConnectNewElement(getDataByInternalId(node), node, filtered, layer, true);
+            }
+        }
+
+
+    }
+
 };
+
+
+
 }  // namespace hnswlib
