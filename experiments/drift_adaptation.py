@@ -170,5 +170,7 @@ def run_query_batch(index, queries, ground_truth, k, ef, controller=None):
 
         if controller is not None:
             controller.record(float(stats["base_layer_entry_distance"]))
+    
+    return results
 
 
