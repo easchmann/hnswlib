@@ -1575,7 +1575,18 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         for (int level = std::min(target_level, maxlevel_); level > curr_level; level--){
             std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(curr_obj, getDataByInternalId(node_id), level);
             
-            curr_obj = mutuallyConnectNewElement(getDataByInternalId(node_id), node_id, top_candidates, level, false);
+            // filter self from candidates to avoid self-loops
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> filtered;
+            while (!top_candidates.empty()) {
+                if (top_candidates.top().second != node_id){
+                    filtered.push(top_candidates.top());
+                }
+                top_candidates.pop();
+            }
+
+            if (!filtered.empty()){
+                curr_obj = mutuallyConnectNewElement(getDataByInternalId(node_id), node_id, filtered, level, false);
+            }
 
         }
         //update global entry point if it reaches new max_layer
@@ -1633,21 +1644,30 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         // candidates.top() returns the pair with the largest distance in the heap
         std::vector<std::pair<dist_t, tableint>> all;
         while (!candidates.empty()) {
-            all.push_back(candidates.top());
-            candidates.pop();
+                all.push_back(candidates.top());
+                candidates.pop();   
         }
         // last k_nodes elements are the nearest (smallest distance)
         for (size_t i = std::max((size_t)0, all.size() - k_nodes); i < all.size(); i++){
             nodes_to_update.push_back(all[i].second);
         }
 
+
         // for each selected node rerun neighbour selectio using target_data as the search centre for the heuristic to form an edge in that direction
         //
         for (tableint node:nodes_to_update){
             std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> top_candidates = searchBaseLayer(node, target_data, layer);
 
-            mutuallyConnectNewElement(getDataByInternalId(node), node, top_candidates, layer, true);
+            // fixed: filter self to avoid "Trying to connect an element to itself"
+            std::priority_queue<std::pair<dist_t, tableint>, std::vector<std::pair<dist_t, tableint>>, CompareByFirst> filtered;
+            while (!top_candidates.empty()) {
+                if (top_candidates.top().second != node)
+                    filtered.push(top_candidates.top());
+                top_candidates.pop();
+            }
 
+            if (!filtered.empty())
+                mutuallyConnectNewElement(getDataByInternalId(node), node, filtered, layer, true);
         }
     }
 
