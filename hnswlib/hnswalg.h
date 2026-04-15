@@ -1484,11 +1484,10 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         std::unique_lock<std::mutex> lock(global);
         enterpoint_node_ = new_entry_point;
 
-        //if new entry point is on a higher level than the current entry point, update maxlevel
-        int node_level = element_levels_[new_entry_point];
-        if (node_level > maxlevel_){
-            maxlevel_ = node_level;
-        }
+        // always sync maxlevel_ to the node's actual level
+        // if the new entry point is below the current maxlevel_, searchKnn would call get_linklist(new_ep, maxlevel_) and read past the node's allocated link list,
+        // which leades to garbage cand values -> was reason for "cand error" crash
+        maxlevel_ = element_levels_[new_entry_point];
     }
 
     // returns the internal ids of all nodes that exist at >=min_layer
@@ -1584,14 +1583,34 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                 top_candidates.pop();
             }
 
-            if (!filtered.empty()){
-                curr_obj = mutuallyConnectNewElement(getDataByInternalId(node_id), node_id, filtered, level, false);
-            }
+        // removed since produced errors
+        // if (!filtered.empty()){
+        //     curr_obj = mutuallyConnectNewElement(getDataByInternalId(node_id), node_id, filtered, level, true);
+        // }
+
+        // apply neighbour heuristic to select final M neighbours
+        getNeighborsByHeuristic2(filtered, M_);
+
+        // write forward edges, no back-edges to avoid corrupting existing nodes' link lists at a layer they were not built for
+        std::unique_lock<std::mutex> lock(link_list_locks_[node_id]);
+        linklistsizeint *ll = get_linklist(node_id, level);
+        size_t n = filtered.size();
+        setListCount(ll, n);
+        tableint *data = (tableint *)(ll + 1);
+        size_t idx = 0;
+        while (!filtered.empty()) {
+            data[idx++] = filtered.top().second;
+            filtered.pop();
+        }
+
+        // update curr_obj for the next layer down
+        if (n > 0) curr_obj = data[0];
 
         }
         //update global entry point if it reaches new max_layer
         // added outer brackets to determine scope and thus lifetime of the lock
-        {   std::unique_lock<std::mutex> lock(global);
+        {   
+            std::unique_lock<std::mutex> lock(global);
             if (target_level > maxlevel_){
                 maxlevel_ = target_level;
                 enterpoint_node_ = node_id;
