@@ -17,6 +17,7 @@ class EntryPointController:
         self.window = []
         self.update_count = 0
         self.update_log = []
+        self.updated_sigmas = set()
 
     def record(self, entry_dist):
         self.window.append(float(entry_dist))
@@ -64,6 +65,11 @@ class DirectedEdgeController(EntryPointController):
         self.layer = layer
     
     def update(self, queries, sigma=None):
+        if sigma in self.updated_sigmas:
+            self.reset_window()
+            return None
+        self.updated_sigmas.add(sigma)
+
         centroid = queries.mean(axis=0).astype(np.float32)
         self.index.add_directed_edges(centroid, layer=self.layer, k_nodes=self.k_nodes)
 
@@ -87,6 +93,11 @@ class PromotionController(EntryPointController):
         self.target_layer=target_layer
 
     def update(self, queries, sigma=None):
+        if sigma in self.updated_sigmas:
+            self.reset_window()
+            return None
+        self.updated_sigmas.add(sigma)
+
         centroid = queries.mean(axis=0).astype(np.float32)
 
         #find existing node closest to centroid
@@ -115,6 +126,11 @@ class RewireController(EntryPointController):
             self.layer   = layer
     
     def update(self, queries, sigma=None):
+        if sigma in self.updated_sigmas:
+            self.reset_window()
+            return None
+        self.updated_sigmas.add(sigma)
+
         centroid = queries.mean(axis=0).astype(np.float32)
         self.index.rewire_local_neighbourhood(centroid, layer=self.layer, k_nodes=self.k_nodes)
 
