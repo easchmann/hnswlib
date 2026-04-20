@@ -1,18 +1,26 @@
-# Per-query entry point routing via a pool of representative index nodes.
-# This approach maintains a pool of M nodes that cover the current query region. 
-# Before each query we do a brute-force nearest-neighbour lookup over the pool (O(M x dim) and use the closest pool node as the entry point. 
-# Since it's almost always a layer-0 node, HNSW skips all upper-layer traversal and base-layer search
-# starts directly from a node close to the query.
+# Per-query entry point routing via a pool of upper-layer HNSW nodes.
 #
-# Pool construction: run warmup queries with high ef and collect the returned nearest-neighbour nodes. 
-# After dedup these are exactly the data nodes that live near the current query distribution, so they're the right starting
-# points for future queries from the same distribution.
+# Pool construction: collect all level-≥1 nodes (HNSW navigation hubs) and
+# select the pool_size nearest to the warmup query centroid.  Setting one of
+# these as the entry point before each search lets searchKnn run a real
+# upper-layer descent from the query region instead of skipping all levels.
 #
-# There's also an online mode (adapt=True in query()) that monitors base_layer_entry_distance and rebuilds the pool automatically when drift
-# is detected, same sliding-window trigger as the other strategies.
+# Why upper-layer nodes are required:
+#   set_entry_point(layer-0 node) causes searchKnn to skip every level ≥1
+#   (guard: `if level > element_levels_[currObj] continue`) and seed the
+#   base-layer beam search from a node with only M₀ connections — no hub
+#   structure, no long-range shortcuts → massive recall drop.
+#   A level-≥1 pool node has proper upper-layer link lists so searchKnn
+#   descends through those levels toward the query before hitting layer 0.
+#
+# NOTE: get_nodes_at_layer returns *internal* IDs.  This implementation
+# assumes internal ID == external label (true when add_items uses np.arange).
+#
+# There is also an online mode (adapt=True in query()) that monitors
+# base_layer_entry_distance and rebuilds the pool automatically on drift.
 #
 # Usage:
-#   router = PoolRouter(raw_index, pool_size=500, ef_build=2000)
+#   router = PoolRouter(raw_index, pool_size=500)
 #   router.build_pool(warmup_queries)
 #   labels, dists = router.query(q, k=10, ef=50)
 
@@ -71,36 +79,35 @@ class PoolRouter:
         self.window.clear()
         return self.baseline
 
-    # Run warmup_queries with high ef and collect the returned NN nodes as pool candidates. Each unique node gets added until we hit pool_size.
-    # We reset to original_ep before each search so the pool is always seeded from a consistent, known-good position regardless of what routing calls
-    # might have changed the global EP to in between.
+    # Select pool_size upper-layer (level ≥ 1) nodes nearest to the centroid
+    # of warmup_queries.  Upper-layer nodes have proper link lists at level ≥ 1,
+    # so set_entry_point on them lets searchKnn run real upper-layer descent.
     def build_pool(self, warmup_queries):
         warmup_queries = np.asarray(warmup_queries, dtype=np.float32)
-        saved_ef = self.index.ef
-        self.index.set_ef(self.ef_build)
 
-        seen = set()
-        candidates = []
-
-        for q in warmup_queries:
-            # always start from the original EP so pool searches are consistent
-            self.index.set_entry_point(self.original_ep)
-            labels, _ = self.index.knn_query(q.reshape(1, -1), k=self.k_build)
-            for nid in labels[0].tolist():
-                if nid not in seen:
-                    seen.add(nid)
-                    candidates.append(nid)
-            if len(candidates) >= self.pool_size:
-                break
-
-        self.index.set_ef(saved_ef)
-
-        if not candidates:
+        # All internal IDs of nodes that live at level ≥ 1.
+        # Assumes internal ID == external label (add_items called with np.arange).
+        upper_internal = self.index.get_nodes_at_layer(1)
+        if not upper_internal:
             return 0
 
-        self.pool_ids = np.array(candidates[:self.pool_size], dtype=np.int64)
-        self.pool_vecs = np.array(self.index.get_items(self.pool_ids.tolist()), dtype=np.float32)
-        return len(self.pool_ids)
+        upper_ids = np.array(upper_internal, dtype=np.int64)
+        upper_vecs = np.array(self.index.get_items(upper_ids.tolist()), dtype=np.float32)
+
+        # Score each hub by squared distance to the warmup centroid and take
+        # the pool_size nearest — these are the hubs closest to the query region.
+        centroid = warmup_queries.mean(axis=0).astype(np.float32)
+        sq = ((upper_vecs - centroid) ** 2).sum(axis=1)
+
+        n_select = min(self.pool_size, len(upper_ids))
+        if n_select < len(upper_ids):
+            sel = np.argpartition(sq, n_select)[:n_select]
+        else:
+            sel = np.arange(len(upper_ids))
+
+        self.pool_ids = upper_ids[sel]
+        self.pool_vecs = upper_vecs[sel]
+        return int(len(self.pool_ids))
 
 
     # querying
