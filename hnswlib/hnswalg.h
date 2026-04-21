@@ -96,6 +96,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     std::mutex deleted_elements_lock;  // lock for deleted_elements
     std::unordered_set<tableint> deleted_elements;  // contains internal ids of deleted elements
 
+    // adaptation for poolAndRewire: entry-point pool (node_id, last_used_query_counter)
+    std::vector<std::pair<tableint, size_t>> entry_point_pool_;
+    mutable std::mutex entry_pool_mutex_;
+    size_t entry_pool_query_counter_{0};
+
 
     HierarchicalNSW(SpaceInterface<dist_t> *s) {
     }
@@ -1935,6 +1940,179 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         }
 
 
+    }
+
+
+    // adaptation for poolAndRewire: query-driven upper-layer rewiring
+    //
+    // For each level from min(max_layer, maxlevel_) down to 1:
+    //   1. Run greedy descent at that level:find curr_obj where descent stalls
+    //   2. Run a beam search (searchBaseLayer at the same level) from curr_obj to find the globally best reachable node 
+    //      for the query at that level.
+    //   3. If curr_obj's distance to query > alpha * best node's distance,
+    //      descent was suboptimal: add a directed edge curr_obj -> best_node,
+    //      evicting the weakest (furthest-from-curr_obj) neighbor when full
+    //
+    // searchBaseLayer accepts a layer parameter and works correctly at level >= 1
+    // (uses get_linklist(node, layer) for neighbor access at upper layers)
+    //
+    // Returns the number of edges added.
+    int rewireForQuery(const void *query_data, int max_layer, float alpha = 1.5f){
+        if (cur_element_count == 0 || max_layer < 1)
+            return 0;
+
+        int edges_added = 0;
+        tableint curr_obj = enterpoint_node_;
+        dist_t curr_dist = fstdistfunc_(query_data, getDataByInternalId(curr_obj), dist_func_param_);
+
+        for (int level = std::min(max_layer, maxlevel_); level >= 1; level--){
+            // greedy descent at this level
+            bool changed = true;
+            while (changed) {
+                changed = false;
+                if (element_levels_[curr_obj] < level) break;
+                std::unique_lock<std::mutex> lock(link_list_locks_[curr_obj]);
+                int *data = (int *)get_linklist(curr_obj, level);
+                int  sz   = getListCount((linklistsizeint *)data);
+                tableint *nbrs = (tableint *)(data + 1);
+                for (int i = 0; i < sz; i++){
+                    tableint cand = nbrs[i];
+                    dist_t d = fstdistfunc_(query_data, getDataByInternalId(cand), dist_func_param_);
+                    if (d < curr_dist){
+                        curr_dist = d;
+                        curr_obj  = cand;
+                        changed   = true;
+                    }
+                }
+            }
+
+            // beam search at this level to find the best reachable node
+            auto beam = searchBaseLayer(curr_obj, query_data, level);
+            if (beam.empty()) continue;
+
+            tableint best_node = curr_obj;
+            dist_t   best_dist = curr_dist;
+            while (!beam.empty()){
+                if (beam.top().first < best_dist){
+                    best_dist = beam.top().first;
+                    best_node = beam.top().second;
+                }
+                beam.pop();
+            }
+
+            // if descent is suboptimal by more than alpha, add a corrective edge
+            if (curr_dist > alpha * best_dist && best_node != curr_obj && element_levels_[best_node] >= level){
+
+                std::unique_lock<std::mutex> lock(link_list_locks_[curr_obj]);
+                linklistsizeint *ll = get_linklist(curr_obj, level);
+                size_t cur_sz = getListCount(ll);
+                tableint *ndata = (tableint *)(ll + 1);
+
+                bool exists = false;
+                for (size_t i = 0; i < cur_sz; i++){
+                    if (ndata[i] == best_node){
+                        exists = true; break;
+                    }
+                }
+
+                if (!exists){
+                    if (cur_sz < (size_t)maxM_){
+                        ndata[cur_sz] = best_node;
+                        setListCount(ll, cur_sz + 1);
+                        edges_added++;
+                    }
+                    else{
+                        // evict the weakest (furthest-from-curr_obj) neighbor
+                        int wi = -1;
+                        dist_t wd = 0;
+                        for (size_t i = 0; i < cur_sz; i++){
+                            dist_t d = fstdistfunc_(getDataByInternalId(curr_obj), getDataByInternalId(ndata[i]), dist_func_param_);
+                            if (d > wd){
+                                wd = d; wi = (int)i;
+                            }
+                        }
+                        dist_t nd = fstdistfunc_(getDataByInternalId(curr_obj), getDataByInternalId(best_node), dist_func_param_);
+                        if (wi >= 0 && nd < wd){
+                            ndata[wi] = best_node;
+                            edges_added++;
+                        }
+                    }
+                }
+            }
+
+            // advance curr_obj toward query for the next layer down
+            if (best_node != curr_obj && element_levels_[best_node] >= level - 1){
+                curr_obj  = best_node;
+                curr_dist = best_dist;
+            }
+        }
+
+        return edges_added;
+    }
+
+    // adaptation for poolAndRewire:
+    // Entry-point pool: small bounded set of candidate entry points covering different query regions. 
+    // At query time Python calls getBestEntryPoint to get the pool member closest to the query, then calls set_entry_point on it
+    // before running knn_query.
+
+    void addToEntryPool(tableint node_id){
+        if (node_id >= cur_element_count){
+            throw std::runtime_error("addToEntryPool: node_id out of range");
+        }
+        std::unique_lock<std::mutex> lock(entry_pool_mutex_);
+        for (auto &p : entry_point_pool_){
+            // already present
+            if (p.first == node_id) return;
+        }
+        entry_point_pool_.emplace_back(node_id, entry_pool_query_counter_);
+    }
+
+    // Return the pool member closest to query_data.
+    // Falls back to the global entry point when the pool is empty.
+    // Updates LRU timestamp for the winner after the scan (not during, to avoid aliasing when best changes mid-loop)
+    tableint getBestEntryPoint(const void *query_data){
+        std::unique_lock<std::mutex> lock(entry_pool_mutex_);
+        ++entry_pool_query_counter_;
+
+        if (entry_point_pool_.empty())
+            return enterpoint_node_;
+
+        tableint best = entry_point_pool_[0].first;
+        dist_t best_d = fstdistfunc_(query_data, getDataByInternalId(best), dist_func_param_);
+        for (auto &p : entry_point_pool_){
+            dist_t d = fstdistfunc_(query_data, getDataByInternalId(p.first), dist_func_param_);
+            if (d < best_d){
+                best_d = d; best = p.first;
+            }
+        }
+        // update LRU timestamp only after finding the final winner
+        for (auto &p : entry_point_pool_) {
+            if (p.first == best){
+                p.second = entry_pool_query_counter_;
+                break;
+            }
+        }
+        return best;
+    }
+
+    // Remove LRU pool members until size <= max_size.
+    void pruneEntryPool(size_t max_size){
+        std::unique_lock<std::mutex> lock(entry_pool_mutex_);
+
+        if (entry_point_pool_.size() <= max_size){
+            return;
+        }
+        std::sort(entry_point_pool_.begin(), entry_point_pool_.end(),
+                [](const auto& a, const auto& b){
+                    return a.second < b.second;
+                });
+
+        entry_point_pool_.erase(entry_point_pool_.begin(), entry_point_pool_.end() - max_size);
+    }
+
+    size_t entryPoolSize() const {
+        std::unique_lock<std::mutex> lock(entry_pool_mutex_);
+        return entry_point_pool_.size();
     }
 
 };

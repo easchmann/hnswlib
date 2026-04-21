@@ -85,17 +85,23 @@ class PoolRouter:
     def build_pool(self, warmup_queries):
         warmup_queries = np.asarray(warmup_queries, dtype=np.float32)
 
-        # All internal IDs of nodes that live at level ≥ 1.
+        # instead of selecting pool nodes from layer >=1 nodes, we try starting at the highest layer
+        # then go to lower layer if the pool is not full enough. -> goal to have nodes at highest possible level.
         # Assumes internal ID == external label (add_items called with np.arange).
-        upper_internal = self.index.get_nodes_at_layer(1)
-        if not upper_internal:
-            return 0
+        for min_layer in range(self.index.max_level, 0, -1):
+            candidates = self.index.get_nodes_at_layer(min_layer)
+            if len(candidates) >= self.pool_size//2:
+                break
 
-        upper_ids = np.array(upper_internal, dtype=np.int64)
+        # upper_internal = self.index.get_nodes_at_layer(1)
+        # if not upper_internal:
+        #     return 0
+
+        upper_ids = np.array(candidates, dtype=np.int64)
         upper_vecs = np.array(self.index.get_items(upper_ids.tolist()), dtype=np.float32)
 
         # Score each hub by squared distance to the warmup centroid and take
-        # the pool_size nearest — these are the hubs closest to the query region.
+        # the pool_size nearest. these are the hubs closest to the query region.
         centroid = warmup_queries.mean(axis=0).astype(np.float32)
         sq = ((upper_vecs - centroid) ** 2).sum(axis=1)
 
