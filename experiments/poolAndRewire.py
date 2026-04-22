@@ -131,7 +131,7 @@ class PoolAndRewireController:
 
         # CHANGE FROM PREVIOUS VERSION: PROMOTE TO HIGHER LAYER
         target_layer = max(3, self.index.get_max_level()-1)
-        
+
         self.index.promote_node(new_ep, target_layer=target_layer)
 
         self.index.add_to_entry_pool(new_ep)
@@ -159,9 +159,21 @@ def search_with_pool(index, query, k, ef):
     best_ep = index.get_best_entry_point(query)
     index.set_entry_point(best_ep)
     index.set_ef(ef)
-    labels, dists = index.knn_query(query.reshape(1, -1), k=k)
-    stats = hnswlib.get_last_query_stats()
-    return labels, dists, stats
+    labels_pool, dists_pool = index.knn_query(query.reshape(1, -1), k=k)
+    stats_pool = hnswlib.get_last_query_stats()
+
+    # also try original entry point
+
+    # restore original entry point
+    index.reset_entry_point()
+    labels_original, dists_original = index.knn_query(query.reshape(1, -1), k=k)
+    stats_original = hnswlib.get_last_query_stats()
+
+    # choose whichever has lower base layer entry distance
+    if stats_pool["base_layer_entry_distance"] < stats_original["base_layer_entry_dsitance"]:
+        return labels_pool, dists_pool, stats_pool
+    else: 
+        return labels_original, dists_original, stats_original
 
 
 def run_query_batch(index, queries, gt, k, ef, controller=None, use_pool=False):
