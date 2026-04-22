@@ -130,7 +130,7 @@ class PoolAndRewireController:
         new_ep = int(labels[0][0])
 
         # CHANGE FROM PREVIOUS VERSION: PROMOTE TO HIGHER LAYER
-        target_layer = max(3, self.index.get_max_level()-1)
+        target_layer = max(3, self.index.max_layer()-1)
 
         self.index.promote_node(new_ep, target_layer=target_layer)
 
