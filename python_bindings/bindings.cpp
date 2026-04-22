@@ -1038,6 +1038,38 @@ PYBIND11_PLUGIN(hnswlib) {
             return std::vector<size_t>(repaired.begin(), repaired.end());
         }, py::arg("target"), py::arg("k_nodes") = 50, py::arg("ef_repair") = 500)
 
+        // poolAndRewire adaptation: query-driven upper-layer rewiring
+        .def("rewire_for_query", [](Index<float> &index,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> query,
+                                    int max_layer,
+                                    float alpha) -> int {
+            auto buf = query.request();
+            if (buf.ndim != 1)
+                throw std::runtime_error("rewire_for_query: query must be 1-D");
+            return index.appr_alg->rewireForQuery((void *)buf.ptr, max_layer, alpha);
+        }, py::arg("query"), py::arg("max_layer") = 1, py::arg("alpha") = 1.5f)
+
+        // poolAndRewire adaptation: entry-point pool
+        .def("add_to_entry_pool", [](Index<float> &index, size_t node_id) {
+            index.appr_alg->addToEntryPool((hnswlib::tableint)node_id);
+        }, py::arg("node_id"))
+
+        .def("get_best_entry_point", [](Index<float> &index,
+                                        py::array_t<float, py::array::c_style | py::array::forcecast> query) -> size_t {
+            auto buf = query.request();
+            if (buf.ndim != 1)
+                throw std::runtime_error("get_best_entry_point: query must be 1-D");
+            return (size_t)index.appr_alg->getBestEntryPoint((void *)buf.ptr);
+        }, py::arg("query"))
+
+        .def("prune_entry_pool", [](Index<float> &index, size_t max_size) {
+            index.appr_alg->pruneEntryPool(max_size);
+        }, py::arg("max_size"))
+
+        .def("entry_pool_size", [](const Index<float> &index) -> size_t {
+            return index.appr_alg->entryPoolSize();
+        })
+
         .def(py::pickle(
             [](const Index<float> &ind) {  // __getstate__
                 return py::make_tuple(ind.getIndexParams()); /* Return dict (wrapped in a tuple) that fully encodes state of the Index object */
