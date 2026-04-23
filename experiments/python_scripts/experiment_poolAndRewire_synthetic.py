@@ -326,7 +326,7 @@ def main():
             )
             results = run_query_batch(idx, eval_q, eval_gt, k=k, ef=ef,
                                       controller=ctrl, use_pool=True)
-            all_results[("thesis", sigma, ef)] = results
+            all_results[("poolAndRewire", sigma, ef)] = results
             mean_r  = np.mean([r["recall"]       for r in results])
             mean_bl = np.mean([r["bl_entry_dist"] for r in results])
             print(f"    ef={ef:>4}  recall={mean_r:.4f}  bl_entry={mean_bl:.2f}"

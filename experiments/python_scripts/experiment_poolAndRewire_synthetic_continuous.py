@@ -361,7 +361,7 @@ def main():
             eval_gt = ground_truths[sigma][n_warmup:]
             results = run_query_batch(idx, eval_q, eval_gt, k=k, ef=ef,
                                       controller=ctrl, use_pool=True)
-            all_results[("thesis", ef, sigma)] = results
+            all_results[("poolAndRewire", ef, sigma)] = results
             mean_r  = np.mean([r["recall"]       for r in results])
             mean_bl = np.mean([r["bl_entry_dist"] for r in results])
             cumulative_query += len(results)

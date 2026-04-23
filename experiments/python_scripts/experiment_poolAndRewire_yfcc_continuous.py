@@ -55,11 +55,11 @@ parser.add_argument("--ef_construction", type=int,   default=200)
 parser.add_argument("--k",               type=int,   default=10)
 # controller params
 parser.add_argument("--alpha",              type=float, default=1.5)
-parser.add_argument("--max_layer",          type=int,   default=1)
-parser.add_argument("--queries_per_rewire", type=int,   default=10)
+parser.add_argument("--max_layer",          type=int,   default=3)
+parser.add_argument("--queries_per_rewire", type=int,   default=200)
 parser.add_argument("--cooldown",           type=int,   default=50)
-parser.add_argument("--window_size",        type=int,   default=100)
-parser.add_argument("--max_pool_size",      type=int,   default=5)
+parser.add_argument("--window_size",        type=int,   default=200)
+parser.add_argument("--max_pool_size",      type=int,   default=20)
 parser.add_argument("--out_dir", default="results_poolAndRewire_yfcc_continuous")
 args = parser.parse_args()
 
@@ -320,7 +320,7 @@ def main():
 
     # adaptation strategy: one fresh index per ef, controller persists across sigmas
     print(f"\n{'='*60}")
-    print("strategy: thesis  (continuous — one run per ef)")
+    print("strategy: poolAndRewire  (continuous — one run per ef)")
     print(f"{'='*60}")
     for ef in args.ef_sweep:
         idx = load_fresh(index_path, n_index_actual)
@@ -342,7 +342,7 @@ def main():
             eval_gt = ground_truths[sigma][args.n_warmup:]
             results = run_query_batch(idx, eval_q, eval_gt, k=k, ef=ef,
                                       controller=ctrl, use_pool=True)
-            all_results[("thesis", ef, sigma)] = results
+            all_results[("poolAndRewire", ef, sigma)] = results
             mean_r  = np.mean([r["recall"]       for r in results])
             mean_bl = np.mean([r["bl_entry_dist"] for r in results])
             cumulative_query += len(results)
