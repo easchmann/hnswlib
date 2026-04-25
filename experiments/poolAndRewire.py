@@ -45,12 +45,12 @@ class PoolAndRewireController:
                  bl_entry_threshold=None,   # absolute; default = 1.5x baseline
                  centroid_threshold=None,   # L2 displacement; None = disabled
                  # rewiring
-                 alpha=1.5,
+                 alpha=1.1,
                  max_layer=3,
                  queries_per_rewire=10,
                  cooldown=100,
                  # entry pool
-                 max_pool_size=20):
+                 max_pool_size=50):
 
         self.index              = index
         self.alpha              = alpha
@@ -63,7 +63,7 @@ class PoolAndRewireController:
 
         baseline = measure_baseline(index, reference_queries)
         self.baseline_bl_entry  = baseline
-        self.bl_entry_threshold = bl_entry_threshold or baseline * 1.5
+        self.bl_entry_threshold = bl_entry_threshold or baseline * 1.2
         self.centroid_threshold = centroid_threshold
 
         self.query_window    = []
@@ -98,6 +98,19 @@ class PoolAndRewireController:
             sq_dists = np.sum((vecs - centroid) ** 2, axis=1)
             farthest = node_ids[int(np.argmax(sq_dists))]
             self._pool.discard(farthest)
+    
+    def _pool_evict_by_redundancy(self):
+        while len(self._pool) > self.max_pool_size:
+            node_ids = list(self._pool)
+            vecs = self.index.get_items(node_ids) #(pool_size,dim)
+            #pairwise squared L2 norm
+            diff = vecs[:, None, :] - vecs[None, :, :] #(n,n,dim)
+            sq_dists = np.sum(diff**2, axis=2) #(n,n)
+            np.fill_diagonal(sq_dists, np.inf)
+            min_dists = sq_dists.min(axis=1)
+            most_redundant = node_ids[int(np.argmin(min_dists))]
+            self._pool.discard(most_redundant)
+
 
     def _pool_best_entry(self, query):
         """Return the pool node with the smallest squared-L2 distance to query.
@@ -110,6 +123,21 @@ class PoolAndRewireController:
         vecs     = self.index.get_items(node_ids)
         sq_dists = np.sum((vecs - query) ** 2, axis=1)
         return node_ids[int(np.argmin(sq_dists))]
+    
+    def _pool_best_2_entries(self, query):
+        """Return the 2 pool nodes with the smallest squared-L2 distance to query.
+
+        Falls back to the global index entry point when the pool is empty.
+        """
+        if not self._pool:
+            return int(self.index.enterpoint_node)
+        node_ids = list(self._pool)
+        vecs     = self.index.get_items(node_ids)
+        sq_dists = np.sum((vecs - query) ** 2, axis=1)
+        node_id_1 = node_ids[int(np.argmin(sq_dists))]
+        node_ids.remove(node_id_1)
+        node_id_2 = node_ids[int(np.argmin(sq_dists))]
+        return node_id_1, node_id_2
 
 
     def record(self, query_vec, bl_entry_dist):
@@ -163,15 +191,26 @@ class PoolAndRewireController:
         # Querying k=5 instead of k=1 ensures the pool grows on every step even when the single nearest centroid node is already present.
         # Each candidate is promoted to max_level so it can serve as a top-level entry point (same layer as the original global entry point).
         # After adding, evict pool nodes farthest from the centroid.
-        centroid = np.mean(self.query_window, axis=0).astype(np.float32)
-        self.index.set_ef(50)
-        k_pool = min(5, self.max_pool_size)
-        cand_labels, _ = self.index.knn_query(centroid.reshape(1, -1), k=k_pool)
-        for new_ep in cand_labels[0]:
-            new_ep = int(new_ep)
-            self.index.promote_node(new_ep, target_layer=self.index.max_level)
+        # centroid = np.mean(self.query_window, axis=0).astype(np.float32)
+        self.index.set_ef(500)
+
+        k_pool = min(20, self.max_pool_size)
+        # cand_labels, _ = self.index.knn_query(centroid.reshape(1, -1), k=k_pool)
+        # for new_ep in cand_labels[0]:
+        #     new_ep = int(new_ep)
+        #     self.index.promote_node(new_ep, target_layer=self.index.max_level)
+        #     self._pool_add(new_ep)
+
+        # new approach:  build the pool on the recent query distribution rather than centroid
+        sample_queries = recent[-k_pool:]
+        for q in sample_queries:
+            cand, _ = self.index.knn_query(q.reshape(1,-1),k=1)
+            new_ep = int(cand[0][0])
+            self.index.promote_node(new_ep, target_layer=self.max_layer)
             self._pool_add(new_ep)
-        self._pool_evict_by_centroid(centroid)
+
+        # self._pool_evict_by_centroid(centroid)
+        self._pool_evict_by_redundancy()
 
         self.update_count += 1
         self.queries_since_last_adapt = 0
