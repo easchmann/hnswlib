@@ -50,7 +50,7 @@ class PoolAndRewireController:
                  queries_per_rewire=10,
                  cooldown=100,
                  # entry pool
-                 max_pool_size=50):
+                 max_pool_size=200):
 
         self.index              = index
         self.alpha              = alpha
@@ -172,6 +172,29 @@ class PoolAndRewireController:
             return False
         self._adapt(reason)
         return True
+    
+
+    def _build_highway(self):
+        """Add directed edge from the global entry point at max_layer towards the current query
+        query centroid. After k adapt steps, the entry point has k extra max layer neighbours pointing to the drifted
+        region, so upper-layer descent should start routing there for fututre queries."""
+        centroid = np.mean(self.query_window, axis=0).astype(np.float32)
+        max_layer = self.max_layer
+        max_layer_nodes = self.index.get_nodes_at_layer(max_layer)
+        if len(max_layer_nodes) ==0:
+            return
+        
+        vecs = self.index.get_items(max_layer_nodes)
+        sq_dists = np.sum((vecs-centroid) **2, axis=1)
+        nearest = int(max_layer_nodes[np.argmin(sq_dists)])
+
+        ep = int(self.index.enterpoint_node)
+        if (nearest==ep):
+            return
+        
+        # add_back_edge adds nearest to ep neighbour list at max_layer- if the list is already full, it removes
+        # the currently farthest neighbour only if nearest is closer so it does not disturb connectivity.
+        self.index.add_back_edge(ep, nearest,max_layer)
 
 
     def _adapt(self, reason):
@@ -211,6 +234,9 @@ class PoolAndRewireController:
 
         # self._pool_evict_by_centroid(centroid)
         self._pool_evict_by_redundancy()
+
+        #component3: max layer highway edge from global entry point toward the drifted region
+        self._build_highway()
 
         self.update_count += 1
         self.queries_since_last_adapt = 0
