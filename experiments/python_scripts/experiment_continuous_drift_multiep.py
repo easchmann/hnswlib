@@ -20,7 +20,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import hnswlib
-from adaptive_hnsw_multiep import MultiEPAdaptiveHNSW
+from experiments.controllers.adaptive_hnsw_multiep import MultiEPAdaptiveHNSW
 
 rng = np.random.default_rng(42)
 

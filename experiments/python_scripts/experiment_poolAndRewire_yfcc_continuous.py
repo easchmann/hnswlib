@@ -36,7 +36,7 @@ sys.path.insert(0, script_dir)
 sys.path.insert(0, os.path.join(script_dir, ".."))
 
 import hnswlib
-from poolAndRewire import PoolAndRewireController, run_query_batch
+from experiments.controllers.poolAndRewire import PoolAndRewireController, run_query_batch
 
 rng = np.random.default_rng(42)
 

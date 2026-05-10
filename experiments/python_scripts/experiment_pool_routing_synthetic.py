@@ -28,7 +28,7 @@ sys.path.insert(0, script_dir)
 sys.path.insert(0, os.path.join(script_dir, ".."))
 
 import hnswlib
-from pool_router import PoolRouter
+from experiments.controllers.pool_router import PoolRouter
 
 rng = np.random.default_rng(42)
 

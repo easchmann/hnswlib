@@ -22,7 +22,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import hnswlib
-from drift_adaptation_anchor_2 import ProgressiveExpansionController, measure_baseline,run_query_batch
+from experiments.controllers.drift_adaptation_anchor_2 import ProgressiveExpansionController, measure_baseline,run_query_batch
 
 
 rng = np.random.default_rng(42)
