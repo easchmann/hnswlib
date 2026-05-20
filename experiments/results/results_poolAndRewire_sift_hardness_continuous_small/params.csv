@@ -1,0 +1,19 @@
+param,value
+dataset,SIFT1B-hardness
+experiment_type,continuous_hardness_drift
+dim,128
+n_index,10000000
+n_queries_total,5000000
+n_bins,10
+hardness_bin_edges,"[0.0, 0.0, 0.0, 0.1, 0.1, 0.2, 0.3, 0.3, 0.4, 0.6, 1.0]"
+ef_sweep,"[10, 50, 100, 200, 500]"
+k,10
+alpha,1.1
+max_layer,3
+queries_per_rewire,200
+cooldown,50
+window_size,200
+max_pool_size,50
+n_queries_per_bin,5000
+drift_direction,hardness_sorted_easy_to_hard
+rng_seed,42
