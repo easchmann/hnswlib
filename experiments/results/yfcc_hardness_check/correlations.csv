@@ -1,0 +1,4 @@
+metric,pearson_r,pearson_p,spearman_r,spearman_p
+1-recall@k,0.5431,0.0,0.4955,0.0
+base_dist_comps,0.3407,0.0,0.345,0.0
+bl_entry_dist,0.6968,0.0,0.6402,0.0
