@@ -158,6 +158,18 @@ def main():
         print(f"    Pearson  r={pr:+.4f}  p={pp:.2e}")
         print(f"    Spearman r={sr:+.4f}  p={sp:.2e}")
 
+    corr_rows = []
+    for name, arr in [("1-recall@k", np.array(all_hard_recall)),
+                      ("base_dist_comps", np.array(all_hard_comps)),
+                      ("bl_entry_dist", np.array(all_bl))]:
+        pr, pp = stats.pearsonr(all_sigma, arr)
+        sr, sp = stats.spearmanr(all_sigma, arr)
+        corr_rows.append({"metric": name, "pearson_r": round(float(pr), 4), "pearson_p": float(pp),
+                          "spearman_r": round(float(sr), 4), "spearman_p": float(sp)})
+    corr_df = pd.DataFrame(corr_rows)
+    corr_df.to_csv(os.path.join(args.out_dir, "correlations.csv"), index=False)
+    print(f"\n{corr_df.to_string(index=False)}")
+
     summary = (df.groupby("shift_sigma")
                  .agg(mean_recall=("recall", "mean"),
                       mean_hardness=("hardness_recall", "mean"),
