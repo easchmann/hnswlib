@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import hnswlib
 
@@ -71,9 +72,10 @@ class PoolAndRewireController:
         self.window_size     = window_size
 
         self.queries_since_last_adapt = 0
-        self.update_count      = 0
-        self.update_log        = []
-        self.total_edges_added = 0
+        self.update_count        = 0
+        self.update_log          = []
+        self.total_edges_added   = 0
+        self.total_adapt_time_ms = 0.0
 
         # Python-side pool: set of node IDs currently active as entry points.
         # Eviction is centroid-distance-based (see _pool_evict_by_centroid).
@@ -201,42 +203,38 @@ class PoolAndRewireController:
         if len(self.query_window) < self.queries_per_rewire:
             return
 
+        t_adapt_start = time.perf_counter()
         recent = self.query_window[-self.queries_per_rewire:]
 
         # Component 1: rewire upper layers for each recent query.
         edges_this_step = 0
+        t_rewire_start = time.perf_counter()
         for q in recent:
             n = self.index.rewire_for_query(q, max_layer=self.max_layer, alpha=self.alpha)
             edges_this_step += n
+        t_rewire_ms = (time.perf_counter() - t_rewire_start) * 1000
         self.total_edges_added += edges_this_step
 
-        # Component 2: add k_pool=5 nodes nearest to the full-window centroid.
-        # Querying k=5 instead of k=1 ensures the pool grows on every step even when the single nearest centroid node is already present.
-        # Each candidate is promoted to max_level so it can serve as a top-level entry point (same layer as the original global entry point).
-        # After adding, evict pool nodes farthest from the centroid.
-        # centroid = np.mean(self.query_window, axis=0).astype(np.float32)
+        # Component 2: build pool from recent query distribution.
         self.index.set_ef(500)
-
         k_pool = min(20, self.max_pool_size)
-        # cand_labels, _ = self.index.knn_query(centroid.reshape(1, -1), k=k_pool)
-        # for new_ep in cand_labels[0]:
-        #     new_ep = int(new_ep)
-        #     self.index.promote_node(new_ep, target_layer=self.index.max_level)
-        #     self._pool_add(new_ep)
-
-        # new approach:  build the pool on the recent query distribution rather than centroid
+        t_pool_start = time.perf_counter()
         sample_queries = recent[-k_pool:]
         for q in sample_queries:
             cand, _ = self.index.knn_query(q.reshape(1,-1),k=1)
             new_ep = int(cand[0][0])
             self.index.promote_node(new_ep, target_layer=self.max_layer)
             self._pool_add(new_ep)
-
-        # self._pool_evict_by_centroid(centroid)
         self._pool_evict_by_redundancy()
+        t_pool_ms = (time.perf_counter() - t_pool_start) * 1000
 
-        #component3: max layer highway edge from global entry point toward the drifted region
+        # Component 3: max layer highway edge toward the drifted region.
+        t_highway_start = time.perf_counter()
         self._build_highway()
+        t_highway_ms = (time.perf_counter() - t_highway_start) * 1000
+
+        t_adapt_ms = (time.perf_counter() - t_adapt_start) * 1000
+        self.total_adapt_time_ms += t_adapt_ms
 
         self.update_count += 1
         self.queries_since_last_adapt = 0
@@ -248,9 +246,14 @@ class PoolAndRewireController:
             "pool_size":     len(self._pool),
             "mean_bl_entry": float(np.mean(self.bl_entry_window)),
             "bl_threshold":  self.bl_entry_threshold,
+            "t_adapt_ms":    round(t_adapt_ms, 2),
+            "t_rewire_ms":   round(t_rewire_ms, 2),
+            "t_pool_ms":     round(t_pool_ms, 2),
+            "t_highway_ms":  round(t_highway_ms, 2),
         })
         print(f"  [adapt] update #{self.update_count}  reason={reason}  "
-              f"edges={edges_this_step}  pool={len(self._pool)}")
+              f"edges={edges_this_step}  pool={len(self._pool)}  "
+              f"t_adapt={t_adapt_ms:.0f}ms")
 
 
     def search_with_pool(self, query, k, ef):
@@ -267,24 +270,37 @@ class PoolAndRewireController:
         """
         query = np.asarray(query, dtype=np.float32).ravel()
         original_ep = int(self.index.enterpoint_node)
+        t_total_start = time.perf_counter()
 
         if not self._pool:
             self.index.set_ef(ef)
             labels, dists = self.index.knn_query(query.reshape(1, -1), k=k)
             stats = hnswlib.get_last_query_stats()
+            stats["t_query_ms"]     = (time.perf_counter() - t_total_start) * 1000
+            stats["t_pool_scan_ms"] = 0.0
+            stats["t_pool_knn_ms"]  = stats["t_query_ms"]
+            stats["t_orig_knn_ms"]  = 0.0
             return labels, dists, stats
 
-        # Pool search
+        # Pool scan: find closest pool node to query.
+        t0 = time.perf_counter()
         best_ep = self._pool_best_entry(query)
+        t_pool_scan_ms = (time.perf_counter() - t0) * 1000
+
+        # Pool-entry knn search.
+        t0 = time.perf_counter()
         self.index.set_entry_point(best_ep)
         self.index.set_ef(ef)
         labels_pool, dists_pool = self.index.knn_query(query.reshape(1, -1), k=k)
         stats_pool = hnswlib.get_last_query_stats()
+        t_pool_knn_ms = (time.perf_counter() - t0) * 1000
 
-        # Original-entry search (restores global entry point first)
+        # Original-entry knn search.
+        t0 = time.perf_counter()
         self.index.set_entry_point(original_ep)
         labels_orig, dists_orig = self.index.knn_query(query.reshape(1, -1), k=k)
         stats_orig = hnswlib.get_last_query_stats()
+        t_orig_knn_ms = (time.perf_counter() - t0) * 1000
 
         # Merge: union of both candidate sets, keep k closest by distance.
         merged = {}
@@ -301,6 +317,10 @@ class PoolAndRewireController:
         stats = (stats_pool
                  if stats_pool["base_layer_entry_distance"] <= stats_orig["base_layer_entry_distance"]
                  else stats_orig)
+        stats["t_query_ms"]     = (time.perf_counter() - t_total_start) * 1000
+        stats["t_pool_scan_ms"] = t_pool_scan_ms
+        stats["t_pool_knn_ms"]  = t_pool_knn_ms
+        stats["t_orig_knn_ms"]  = t_orig_knn_ms
         return labels_merged, dists_merged, stats
 
 
@@ -317,11 +337,16 @@ def run_query_batch(index, queries, gt, k, ef, controller=None, use_pool=False):
     results = []
 
     for i, q in enumerate(queries):
+        t0 = time.perf_counter()
         if use_pool and controller is not None:
             labels, _, stats = controller.search_with_pool(q, k=k, ef=ef)
         else:
             labels, _ = index.knn_query(q.reshape(1, -1), k=k)
             stats = hnswlib.get_last_query_stats()
+            stats["t_query_ms"]     = (time.perf_counter() - t0) * 1000
+            stats["t_pool_scan_ms"] = 0.0
+            stats["t_pool_knn_ms"]  = stats["t_query_ms"]
+            stats["t_orig_knn_ms"]  = 0.0
 
         results.append({
             "recall":               len(set(labels[0]) & set(gt[i])) / k,
@@ -333,6 +358,10 @@ def run_query_batch(index, queries, gt, k, ef, controller=None, use_pool=False):
             "base_dist_comps":      int(stats["base_layer_distance_computations"]),
             "candidates_remaining": int(stats["candidates_remaining_at_termination"]),
             "lb_trace":             list(stats["lowerbound_trace"]),
+            "t_query_ms":           float(stats["t_query_ms"]),
+            "t_pool_scan_ms":       float(stats["t_pool_scan_ms"]),
+            "t_pool_knn_ms":        float(stats["t_pool_knn_ms"]),
+            "t_orig_knn_ms":        float(stats["t_orig_knn_ms"]),
         })
 
         if controller is not None:

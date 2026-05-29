@@ -20,6 +20,7 @@ import os
 import sys
 import json
 import argparse
+import time
 import numpy as np
 import pandas as pd
 
@@ -77,7 +78,9 @@ def run_queries_plain(idx, queries, gt, ef):
     idx.set_ef(ef)
     results = []
     for i, q in enumerate(queries):
+        t0 = time.perf_counter()
         pred, _ = idx.knn_query(q.reshape(1, -1), k=k)
+        t_query_ms = (time.perf_counter() - t0) * 1000
         s = hnswlib.get_last_query_stats()
         results.append({
             "recall":               len(set(pred[0]) & set(gt[i])) / k,
@@ -89,6 +92,7 @@ def run_queries_plain(idx, queries, gt, ef):
             "base_dist_comps":      int(s["base_layer_distance_computations"]),
             "candidates_remaining": int(s["candidates_remaining_at_termination"]),
             "lb_trace":             list(s["lowerbound_trace"]),
+            "t_query_ms":           t_query_ms,
         })
     return results
 
@@ -119,7 +123,7 @@ def save_params(n_index, n_queries_total, dim, bin_edges):
     print(f"  saved {path}")
 
 
-def save_summary(all_results, bin_edges):
+def save_summary(all_results, bin_edges, adapt_log=None):
     rows = []
     for (strategy, ef, b), results in sorted(all_results.items()):
         def avg(f): return float(np.nanmean([r[f] for r in results]))
@@ -139,6 +143,10 @@ def save_summary(all_results, bin_edges):
             "mean_base_dist_comps":   avg("base_dist_comps"),
             "mean_candidates_remaining": avg("candidates_remaining"),
             "n_queries":              len(results),
+            "mean_t_query_ms":        avg("t_query_ms"),
+            "mean_t_pool_scan_ms":    avg("t_pool_scan_ms") if "t_pool_scan_ms" in results[0] else float("nan"),
+            "mean_t_pool_knn_ms":     avg("t_pool_knn_ms")  if "t_pool_knn_ms"  in results[0] else float("nan"),
+            "mean_t_orig_knn_ms":     avg("t_orig_knn_ms")  if "t_orig_knn_ms"  in results[0] else float("nan"),
         })
 
     df = pd.DataFrame(rows).round(4)
@@ -164,6 +172,19 @@ def save_summary(all_results, bin_edges):
         print(f"\nrecall delta ({strategy} - no_adaptation):")
         print(delta.to_string())
 
+    # Overhead summary: mean query latency and overhead ratio per ef.
+    print("\n--- query latency overhead ---")
+    base_t = df[df["strategy"] == "no_adaptation"].groupby("ef_search")["mean_t_query_ms"].mean()
+    for strategy in df["strategy"].unique():
+        if strategy == "no_adaptation":
+            continue
+        adap_t = df[df["strategy"] == strategy].groupby("ef_search")["mean_t_query_ms"].mean()
+        overhead = (adap_t / base_t).round(2)
+        print(f"\n{strategy} vs no_adaptation (mean ms / overhead ratio):")
+        for ef in sorted(base_t.index):
+            print(f"  ef={ef:4d}  no_adapt={base_t[ef]:.3f}ms  "
+                  f"{strategy}={adap_t[ef]:.3f}ms  overhead={overhead[ef]:.2f}x")
+
 
 def save_per_query(all_results):
     rows = []
@@ -183,6 +204,10 @@ def save_per_query(all_results):
                 "candidates_remaining": r["candidates_remaining"],
                 "lb_trace_final":       r["lb_trace"][-1] if r["lb_trace"] else float("nan"),
                 "lb_trace_len":         len(r["lb_trace"]),
+                "t_query_ms":           r.get("t_query_ms", float("nan")),
+                "t_pool_scan_ms":       r.get("t_pool_scan_ms", float("nan")),
+                "t_pool_knn_ms":        r.get("t_pool_knn_ms", float("nan")),
+                "t_orig_knn_ms":        r.get("t_orig_knn_ms", float("nan")),
             }
             for layer, visits in enumerate(r["layer_visits"]):
                 row[f"layer{layer}_visits"] = visits
@@ -280,6 +305,10 @@ def main():
             print(f"    bin={b}  hardness=[{bin_edges[b]:.3f},{bin_edges[b+1]:.3f}]  "
                   f"recall={mean_r:.4f}  bl_entry={mean_bl:.2f}  "
                   f"updates={ctrl.update_count}  cumulative_q={cumulative_query}")
+        n_eval_queries = sum(len(b) for b in eval_bins)
+        amortized_ms = ctrl.total_adapt_time_ms / max(n_eval_queries, 1)
+        print(f"  adapt events={ctrl.update_count}  total_adapt={ctrl.total_adapt_time_ms:.0f}ms  "
+              f"amortized={amortized_ms:.4f}ms/query")
         for entry in ctrl.update_log:
             entry["ef"] = ef
             adapt_log.append(entry)
