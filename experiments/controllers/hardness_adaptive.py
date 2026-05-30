@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import hnswlib
 
@@ -87,7 +88,8 @@ class HardnessAdaptiveController:
         self.update_count = 0
         self.update_log = []
         self.total_edges_added = 0
-        self.escalation_count  = 0
+        self.escalation_count = 0
+        self.total_adapt_time_ms = 0.0
 
         print(
             f"  [HardnessAdaptive] hard_threshold={self.hard_threshold:.1f} "
@@ -124,6 +126,8 @@ class HardnessAdaptiveController:
         Update internal state with the result of one query.
 
         """
+        t_adapt_start = time.perf_counter()
+
         dist_comps = int(stats["base_layer_distance_computations"])
         is_hard = dist_comps > self.hard_threshold
 
@@ -133,34 +137,48 @@ class HardnessAdaptiveController:
             self._recent_hardness.pop(0)
 
         if not is_hard:
-            return
+            t_adapt_ms = (time.perf_counter() - t_adapt_start) * 1000
+            self.total_adapt_time_ms += t_adapt_ms
+            return t_adapt_ms
 
         q = np.asarray(query_vec, dtype=np.float32).ravel()
 
         # pool: find the nearest index node to this hard query and promote it
+        t_pool_ms = 0.0
         if self.use_pool:
+            t0 = time.perf_counter()
             self.index.set_ef(self.pool_seed_ef)
             cand, _ = self.index.knn_query(q.reshape(1, -1), k=1)
             new_ep = int(cand[0][0])
             self.index.promote_node(new_ep, target_layer=self.max_layer)
             self._pool_add(new_ep)
             self._pool_evict(q)
+            t_pool_ms = (time.perf_counter() - t0) * 1000
 
         # rewiring: after hard_rewire_cooldown hard queries, add corrective edges
+        t_rewire_ms = 0.0
         self._hard_queries_since_rewire += 1
         if self.use_rewire and self._hard_queries_since_rewire >= self.hard_rewire_cooldown:
+            t0 = time.perf_counter()
             n_edges = self.index.rewire_for_query(q, max_layer=self.max_layer, alpha=self.alpha)
+            t_rewire_ms = (time.perf_counter() - t0) * 1000
             self.total_edges_added += n_edges
             self._hard_queries_since_rewire = 0
             self.update_count += 1
             self.update_log.append({
-                "update_n": self.update_count,
-                "dist_comps": dist_comps,
-                "threshold": self.hard_threshold,
+                "update_n":    self.update_count,
+                "dist_comps":  dist_comps,
+                "threshold":   self.hard_threshold,
                 "edges_added": n_edges,
                 "total_edges": self.total_edges_added,
-                "pool_size": len(self._pool),
+                "pool_size":   len(self._pool),
+                "t_pool_ms":   round(t_pool_ms, 3),
+                "t_rewire_ms": round(t_rewire_ms, 3),
             })
+
+        t_adapt_ms = (time.perf_counter() - t_adapt_start) * 1000
+        self.total_adapt_time_ms += t_adapt_ms
+        return t_adapt_ms
 
     # ef selectio
 
@@ -190,21 +208,33 @@ class HardnessAdaptiveController:
         query = np.asarray(query, dtype=np.float32).ravel()
         original_ep = int(self.index.enterpoint_node)
         ef_use = self._effective_ef(ef)
+        t_total_start = time.perf_counter()
 
         # global-EP search
         self.index.set_entry_point(original_ep)
         self.index.set_ef(ef_use)
+        t0 = time.perf_counter()
         labels_g, dists_g = self.index.knn_query(query.reshape(1, -1), k=k)
+        t_global_knn_ms = (time.perf_counter() - t0) * 1000
         stats_g = hnswlib.get_last_query_stats()
 
         if not self.use_pool or not self._pool:
+            stats_g["t_query_ms"] = (time.perf_counter() - t_total_start) * 1000
+            stats_g["t_global_knn_ms"] = t_global_knn_ms
+            stats_g["t_pool_scan_ms"] = 0.0
+            stats_g["t_pool_knn_ms"] = 0.0
             return labels_g, dists_g, stats_g
 
         # pool search
+        t0 = time.perf_counter()
         best_ep = self._pool_best_entry(query)
+        t_pool_scan_ms = (time.perf_counter() - t0) * 1000
+
         self.index.set_entry_point(best_ep)
         self.index.set_ef(ef_use)
+        t0 = time.perf_counter()
         labels_p, dists_p = self.index.knn_query(query.reshape(1, -1), k=k)
+        t_pool_knn_ms = (time.perf_counter() - t0) * 1000
         stats_p = hnswlib.get_last_query_stats()
 
         # restore global EP
@@ -224,6 +254,10 @@ class HardnessAdaptiveController:
         dists_merged = np.array([[it[1] for it in sorted_items]], dtype=np.float32)
 
         stats = (stats_p if stats_p["base_layer_entry_distance"] <= stats_g["base_layer_entry_distance"] else stats_g)
+        stats["t_query_ms"] = (time.perf_counter() - t_total_start) * 1000
+        stats["t_global_knn_ms"] = t_global_knn_ms
+        stats["t_pool_scan_ms"] = t_pool_scan_ms
+        stats["t_pool_knn_ms"] = t_pool_knn_ms
         return labels_merged, dists_merged, stats
 
 
@@ -238,11 +272,19 @@ def run_query_batch_hardness(index, queries, gt, k, ef, controller=None):
 
     for i, q in enumerate(queries):
         if controller is not None:
+            t0 = time.perf_counter()
             labels, _, stats = controller.search(q, k=k, ef=ef)
+            t_query_ms = (time.perf_counter() - t0) * 1000
         else:
             index.set_ef(ef)
+            t0 = time.perf_counter()
             labels, _ = index.knn_query(q.reshape(1, -1), k=k)
+            t_query_ms = (time.perf_counter() - t0) * 1000
             stats = hnswlib.get_last_query_stats()
+            stats["t_query_ms"] = t_query_ms
+            stats["t_global_knn_ms"] = t_query_ms
+            stats["t_pool_scan_ms"] = 0.0
+            stats["t_pool_knn_ms"] = 0.0
 
         results.append({
             "recall":               len(set(labels[0]) & set(gt[i])) / k,
@@ -254,9 +296,15 @@ def run_query_batch_hardness(index, queries, gt, k, ef, controller=None):
             "base_dist_comps":      int(stats["base_layer_distance_computations"]),
             "candidates_remaining": int(stats["candidates_remaining_at_termination"]),
             "lb_trace":             list(stats["lowerbound_trace"]),
+            "t_query_ms":           t_query_ms,
+            "t_global_knn_ms":      float(stats.get("t_global_knn_ms", t_query_ms)),
+            "t_pool_scan_ms":       float(stats.get("t_pool_scan_ms", 0.0)),
+            "t_pool_knn_ms":        float(stats.get("t_pool_knn_ms", 0.0)),
+            "t_adapt_ms":           0.0,
         })
 
         if controller is not None:
-            controller.record_and_adapt(q, stats)
+            t_adapt_ms = controller.record_and_adapt(q, stats)
+            results[-1]["t_adapt_ms"] = t_adapt_ms
 
     return results
