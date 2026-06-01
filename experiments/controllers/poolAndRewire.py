@@ -76,6 +76,7 @@ class PoolAndRewireController:
         self.update_log          = []
         self.total_edges_added   = 0
         self.total_adapt_time_ms = 0.0
+        self.total_queries_processed = 0
 
         # Python-side pool: set of node IDs currently active as entry points.
         # Eviction is centroid-distance-based (see _pool_evict_by_centroid).
@@ -146,6 +147,7 @@ class PoolAndRewireController:
         self.query_window.append(query_vec.astype(np.float32))
         self.bl_entry_window.append(float(bl_entry_dist))
         self.queries_since_last_adapt += 1
+        self.total_queries_processed += 1
         if len(self.query_window) > self.window_size:
             self.query_window.pop(0)
             self.bl_entry_window.pop(0)
@@ -278,8 +280,8 @@ class PoolAndRewireController:
             stats = hnswlib.get_last_query_stats()
             stats["t_query_ms"]     = (time.perf_counter() - t_total_start) * 1000
             stats["t_pool_scan_ms"] = 0.0
-            stats["t_pool_knn_ms"]  = stats["t_query_ms"]
-            stats["t_orig_knn_ms"]  = 0.0
+            stats["t_pool_knn_ms"]  = 0.0
+            stats["t_orig_knn_ms"]  = stats["t_query_ms"]
             return labels, dists, stats
 
         # Pool scan: find closest pool node to query.
@@ -345,8 +347,14 @@ def run_query_batch(index, queries, gt, k, ef, controller=None, use_pool=False):
             stats = hnswlib.get_last_query_stats()
             stats["t_query_ms"]     = (time.perf_counter() - t0) * 1000
             stats["t_pool_scan_ms"] = 0.0
-            stats["t_pool_knn_ms"]  = stats["t_query_ms"]
-            stats["t_orig_knn_ms"]  = 0.0
+            stats["t_pool_knn_ms"]  = 0.0
+            stats["t_orig_knn_ms"]  = stats["t_query_ms"]
+
+        if controller is not None:
+            controller.record(q, float(stats["base_layer_entry_distance"]))
+            controller.maybe_adapt()
+
+        t_adapt_ms = (controller.total_adapt_time_ms / controller.total_queries_processed) if controller is not None else 0.0
 
         results.append({
             "recall":               len(set(labels[0]) & set(gt[i])) / k,
@@ -362,10 +370,7 @@ def run_query_batch(index, queries, gt, k, ef, controller=None, use_pool=False):
             "t_pool_scan_ms":       float(stats["t_pool_scan_ms"]),
             "t_pool_knn_ms":        float(stats["t_pool_knn_ms"]),
             "t_orig_knn_ms":        float(stats["t_orig_knn_ms"]),
+            "t_adapt_ms":           t_adapt_ms,
         })
-
-        if controller is not None:
-            controller.record(q, float(stats["base_layer_entry_distance"]))
-            controller.maybe_adapt()
 
     return results

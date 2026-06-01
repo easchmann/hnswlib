@@ -147,6 +147,7 @@ def save_summary(all_results, bin_edges, adapt_log=None):
             "mean_t_pool_scan_ms":    avg("t_pool_scan_ms") if "t_pool_scan_ms" in results[0] else float("nan"),
             "mean_t_pool_knn_ms":     avg("t_pool_knn_ms")  if "t_pool_knn_ms"  in results[0] else float("nan"),
             "mean_t_orig_knn_ms":     avg("t_orig_knn_ms")  if "t_orig_knn_ms"  in results[0] else float("nan"),
+            "mean_t_adapt_ms":        avg("t_adapt_ms")     if "t_adapt_ms"     in results[0] else float("nan"),
         })
 
     df = pd.DataFrame(rows).round(4)
@@ -208,6 +209,7 @@ def save_per_query(all_results):
                 "t_pool_scan_ms":       r.get("t_pool_scan_ms", float("nan")),
                 "t_pool_knn_ms":        r.get("t_pool_knn_ms", float("nan")),
                 "t_orig_knn_ms":        r.get("t_orig_knn_ms", float("nan")),
+                "t_adapt_ms":           r.get("t_adapt_ms", float("nan")),
             }
             for layer, visits in enumerate(r["layer_visits"]):
                 row[f"layer{layer}_visits"] = visits
