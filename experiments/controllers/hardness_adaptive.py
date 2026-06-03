@@ -78,12 +78,14 @@ class HardnessAdaptiveController:
         self.use_rewire = use_rewire
         self.use_ef_escalation = use_ef_escalation
 
+        self.warmup_ef = warmup_ef
         warmup_comps = _measure_dist_comps(index, reference_queries, warmup_ef, k)
         self.hard_threshold = float(np.percentile(warmup_comps, hard_percentile))
 
         self._pool = set()
         self._recent_hardness = []   # rolling bool window for escalation
         self._hard_queries_since_rewire = 0
+        self._last_used_ef = warmup_ef
 
         self.update_count = 0
         self.update_log = []
@@ -121,7 +123,7 @@ class HardnessAdaptiveController:
 
     # per-query update (called after each search with the returned stats)
 
-    def record_and_adapt(self, query_vec, stats):
+    def record_and_adapt(self, query_vec, stats, used_ef):
         """
         Update internal state with the result of one query.
 
@@ -129,7 +131,9 @@ class HardnessAdaptiveController:
         t_adapt_start = time.perf_counter()
 
         dist_comps = int(stats["base_layer_distance_computations"])
-        is_hard = dist_comps > self.hard_threshold
+        # scale threshold based on used ef to avoid falsely classifying queries as hard when the 
+        # last used ef value is higher than the warmup_ef that was used for calibration
+        is_hard = dist_comps > self.hard_threshold * (used_ef/self.warmup_ef)
 
         # rolling hardness window for ef escalation
         self._recent_hardness.append(is_hard)
@@ -188,12 +192,16 @@ class HardnessAdaptiveController:
         Boosts ef when the rolling hard-query fraction exceeds escalation_trigger.
         """
         if not self.use_ef_escalation or len(self._recent_hardness) == 0:
+            self._last_used_ef = ef_base
             return ef_base
         # True = 1 False =0
         hard_fraction = sum(self._recent_hardness) / len(self._recent_hardness)
         if hard_fraction >= self.escalation_trigger:
             self.escalation_count += 1
-            return int(ef_base * self.escalation_factor)
+            escalated_ef = int(ef_base * self.escalation_factor)
+            self._last_used_ef = escalated_ef
+            return escalated_ef
+        self._last_used_ef = ef_base
         return ef_base
 
 
@@ -304,7 +312,7 @@ def run_query_batch_hardness(index, queries, gt, k, ef, controller=None):
         })
 
         if controller is not None:
-            t_adapt_ms = controller.record_and_adapt(q, stats)
+            t_adapt_ms = controller.record_and_adapt(q, stats, used_ef=controller._last_used_ef)
             results[-1]["t_adapt_ms"] = t_adapt_ms
 
     return results
