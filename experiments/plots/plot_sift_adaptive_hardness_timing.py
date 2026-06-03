@@ -47,8 +47,8 @@ summary  = load("summary.csv")
 perquery = load("per_query.csv")
 
 # Derive a unified base-knn column that works for both strategies:
-# hardness_adaptive stores it as mean_t_global_knn_ms;
-# poolAndRewire stores it as mean_t_orig_knn_ms (or not at all in older CSVs).
+# hardness_adaptive stores it as mean_t_global_knn_ms
+# poolAndRewire stores it as mean_t_orig_knn_ms (or not at all in older CSVs)
 # Fall back to t_query_ms - t_pool_scan_ms - t_pool_knn_ms when both are absent/NaN.
 if "mean_t_global_knn_ms" in summary.columns:
     summary["mean_t_base_knn_ms"] = summary["mean_t_global_knn_ms"]
