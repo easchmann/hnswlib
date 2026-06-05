@@ -48,10 +48,12 @@ class HardnessAdaptiveController:
         # hard-query threshold
         hard_percentile=75, # percentile of warmup dist_comps -> hard threshold
         warmup_ef=50, # ef used to measure warmup dist_comps
+        sliding_window=200,
         # rewiring
         alpha=1.1,
         max_layer=3,
         hard_rewire_cooldown=10, # hard queries between rewires (not total queries)
+        rewire_k_nodes=5, # nodes whose neighbourhoods are rebuilt per rewire event
         # pool
         max_pool_size=50,
         pool_seed_ef=20, # ef used when finding the node to promote into the pool
@@ -67,8 +69,9 @@ class HardnessAdaptiveController:
         self.index = index
         self.k = k
         self.alpha = alpha
-        self.max_layer = max_layer
-        self.hard_rewire_cooldown  = hard_rewire_cooldown
+        self.max_layer = min(max_layer, index.max_level)
+        self.hard_rewire_cooldown = hard_rewire_cooldown
+        self.rewire_k_nodes = rewire_k_nodes
         self.max_pool_size = max_pool_size
         self.pool_seed_ef = pool_seed_ef
         self.escalation_window = escalation_window
@@ -78,8 +81,12 @@ class HardnessAdaptiveController:
         self.use_rewire = use_rewire
         self.use_ef_escalation = use_ef_escalation
 
+        self.sliding_window=sliding_window
+        self.hard_percentile = hard_percentile
         self.warmup_ef = warmup_ef
         warmup_comps = _measure_dist_comps(index, reference_queries, warmup_ef, k)
+        # seed sliding window with warmup so threshold starts meaningful
+        self.rolling_dc = list(warmup_comps[-sliding_window:])
         self.hard_threshold = float(np.percentile(warmup_comps, hard_percentile))
 
         self._pool = set()
@@ -131,9 +138,19 @@ class HardnessAdaptiveController:
         t_adapt_start = time.perf_counter()
 
         dist_comps = int(stats["base_layer_distance_computations"])
-        # scale threshold based on used ef to avoid falsely classifying queries as hard when the 
-        # last used ef value is higher than the warmup_ef that was used for calibration
-        is_hard = dist_comps > self.hard_threshold * (used_ef/self.warmup_ef)
+
+        #update rolling threshold
+        self.rolling_dc.append(dist_comps)
+        if len(self.rolling_dc) > self.sliding_window:
+            self.rolling_dc.pop(0)
+        self.hard_threshold = float(np.percentile(self.rolling_dc, self.hard_percentile))
+
+        # no scaling since we are using sliding window
+        is_hard = dist_comps > self.hard_threshold 
+        
+        # # scale threshold based on used ef to avoid falsely classifying queries as hard when the 
+        # # last used ef value is higher than the warmup_ef that was used for calibration
+        # is_hard = dist_comps > self.hard_threshold * (used_ef/self.warmup_ef)
 
         # rolling hardness window for ef escalation
         self._recent_hardness.append(is_hard)
@@ -159,21 +176,22 @@ class HardnessAdaptiveController:
             self._pool_evict(q)
             t_pool_ms = (time.perf_counter() - t0) * 1000
 
-        # rewiring: after hard_rewire_cooldown hard queries, add corrective edges
+        # rewiring: after hard_rewire_cooldown hard queries, rebuild local neighbourhoods
         t_rewire_ms = 0.0
         self._hard_queries_since_rewire += 1
         if self.use_rewire and self._hard_queries_since_rewire >= self.hard_rewire_cooldown:
             t0 = time.perf_counter()
-            n_edges = self.index.rewire_for_query(q, max_layer=self.max_layer, alpha=self.alpha)
+            for layer in range(1, self.max_layer + 1):
+                self.index.rewire_local_neighbourhood(q, layer=layer, k_nodes=self.rewire_k_nodes)
             t_rewire_ms = (time.perf_counter() - t0) * 1000
-            self.total_edges_added += n_edges
+            self.total_edges_added += self.rewire_k_nodes
             self._hard_queries_since_rewire = 0
             self.update_count += 1
             self.update_log.append({
                 "update_n":    self.update_count,
                 "dist_comps":  dist_comps,
                 "threshold":   self.hard_threshold,
-                "edges_added": n_edges,
+                "edges_added": self.rewire_k_nodes,
                 "total_edges": self.total_edges_added,
                 "pool_size":   len(self._pool),
                 "t_pool_ms":   round(t_pool_ms, 3),
