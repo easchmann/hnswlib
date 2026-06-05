@@ -176,11 +176,14 @@ class HardnessAdaptiveController:
             self._pool_evict(q)
             t_pool_ms = (time.perf_counter() - t0) * 1000
 
-        # rewiring: after hard_rewire_cooldown hard queries, rebuild local neighbourhoods
+        # rewiring: after hard_rewire_cooldown hard queries, fix navigation to and within the hard region
         t_rewire_ms = 0.0
         self._hard_queries_since_rewire += 1
         if self.use_rewire and self._hard_queries_since_rewire >= self.hard_rewire_cooldown:
             t0 = time.perf_counter()
+            # bridge the greedy-descent stall point toward the hard query (all layers)
+            self.index.rewire_for_query(q, alpha=self.alpha)
+            # improve upper-layer neighbourhood quality around the hard query location
             for layer in range(1, self.max_layer + 1):
                 self.index.rewire_local_neighbourhood(q, layer=layer, k_nodes=self.rewire_k_nodes)
             t_rewire_ms = (time.perf_counter() - t0) * 1000
