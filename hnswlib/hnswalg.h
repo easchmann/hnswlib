@@ -29,7 +29,10 @@ struct QueryStats {
     size_t candidates_remaining_at_termination = 0;
     std::vector<float> lowerbound_trace;            // history of lowerbound per iteration
 
-    // TODO: maybe add traces at some point??
+    // all nodes whose distance was computed during base-layer search:
+    // (internal_id, dist_to_query).  Includes the entry point and every
+    // neighbor examined in the main loop.  Cleared on each searchKnn call.
+    std::vector<std::pair<tableint, float>> base_layer_visited_nodes;
 };
 inline thread_local QueryStats last_query_stats;
 
@@ -471,10 +474,11 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
         
         std::vector<float> lowerbound_trace;
         dist_t lowerBound;
-        if (bare_bone_search || 
+        if (bare_bone_search ||
             (!isMarkedDeleted(ep_id) && ((!isIdAllowed) || (*isIdAllowed)(getExternalLabel(ep_id))))) {
             char* ep_data = getDataByInternalId(ep_id);
             dist_t dist = fstdistfunc_(data_point, ep_data, dist_func_param_);
+            last_query_stats.base_layer_visited_nodes.emplace_back(ep_id, (float)dist);
             lowerBound = dist;
             top_candidates.emplace(dist, ep_id);
             if (!bare_bone_search && stop_condition) {
@@ -544,6 +548,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
                     dist_t dist = fstdistfunc_(data_point, currObj1, dist_func_param_);
                     // increments by one for each call to distfunc
                     last_query_stats.base_layer_distance_computations++;
+                    last_query_stats.base_layer_visited_nodes.emplace_back(candidate_id, (float)dist);
 
                     bool flag_consider_candidate;
                     if (!bare_bone_search && stop_condition) {
@@ -1871,7 +1876,7 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
     }
 
     void rewireLocalNeighbourhood(const void *target_data, int layer, size_t k_nodes){
-        if (layer < 1 || layer > maxlevel_){
+        if (layer < 0 || layer > maxlevel_){
             throw std::runtime_error("rewireLocalNeighbourhood: layer is invalid");
         }
 

@@ -1116,6 +1116,14 @@ PYBIND11_PLUGIN(hnswlib) {
             result["candidates_remaining_at_termination"] = hnswlib::last_query_stats.candidates_remaining_at_termination;
             result["lowerbound_trace"] = hnswlib::last_query_stats.lowerbound_trace;
             result["layer_visit_counts"] = hnswlib::last_query_stats.layer_visit_counts;
+            // visited set: two parallel lists for numpy-friendly access in Python
+            py::list visited_ids, visited_dists;
+            for (auto& p : hnswlib::last_query_stats.base_layer_visited_nodes) {
+                visited_ids.append((size_t)p.first);
+                visited_dists.append(p.second);
+            }
+            result["base_layer_visited_node_ids"]   = visited_ids;
+            result["base_layer_visited_node_dists"] = visited_dists;
             return result;
         });
 
