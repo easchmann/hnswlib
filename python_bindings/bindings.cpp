@@ -1117,10 +1117,11 @@ PYBIND11_PLUGIN(hnswlib) {
             result["lowerbound_trace"] = hnswlib::last_query_stats.lowerbound_trace;
             result["layer_visit_counts"] = hnswlib::last_query_stats.layer_visit_counts;
             // visited set: two parallel lists for numpy-friendly access in Python
+            const auto& visited_nodes = hnswlib::last_query_stats.base_layer_visited_nodes;
             py::list visited_ids, visited_dists;
-            for (auto& p : hnswlib::last_query_stats.base_layer_visited_nodes) {
-                visited_ids.append((size_t)p.first);
-                visited_dists.append(p.second);
+            for (size_t vi = 0; vi < visited_nodes.size(); vi++) {
+                visited_ids.append((size_t)visited_nodes[vi].first);
+                visited_dists.append(visited_nodes[vi].second);
             }
             result["base_layer_visited_node_ids"]   = visited_ids;
             result["base_layer_visited_node_dists"] = visited_dists;

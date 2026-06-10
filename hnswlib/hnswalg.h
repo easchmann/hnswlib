@@ -32,7 +32,7 @@ struct QueryStats {
     // all nodes whose distance was computed during base-layer search:
     // (internal_id, dist_to_query).  Includes the entry point and every
     // neighbor examined in the main loop.  Cleared on each searchKnn call.
-    std::vector<std::pair<tableint, float>> base_layer_visited_nodes;
+    std::vector<std::pair<unsigned int, float>> base_layer_visited_nodes;
 };
 inline thread_local QueryStats last_query_stats;
 
