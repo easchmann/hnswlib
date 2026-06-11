@@ -1,0 +1,24 @@
+SIFT Hardness Spatial Clustering Analysis
+==========================================
+
+Setup
+- 10 equal-count hardness buckets, 300 samples/bucket, 128-dim SIFT vectors
+- Two bucketing strategies: recall-based (1 - recall@k at ef=20) and dist_comps-based (base_layer_distance_computations)
+- Metrics: mean intra/inter-bucket L2 distance ratio, per-point silhouette score (sklearn)
+
+Key findings
+- No strong spatial clustering overall: global mean silhouette = -0.017 to -0.019 (negative)
+- All intra/inter ratios within ~4% of 1.0 — same-hardness queries are not meaningfully more clustered than random pairs
+- Weak but directional signal: easiest (B0) and hardest (B9) buckets are the only ones with positive silhouette scores (+0.002, +0.006 to +0.009)
+- Middle buckets (B2–B7) show no clustering under either strategy
+
+dist_comps vs recall bucketing
+- dist_comps B0 [47–363] clusters more strongly (ratio 0.957 vs 0.972) — easiest queries by dist_comps are more spatially concentrated
+- dist_comps eliminates the degenerate B1 bucket (recall has two consecutive score=0 buckets, dist_comps does not)
+- Hardest bucket (B9) is essentially identical under both strategies (~ratio 0.968–0.970)
+- neither bucketing reveals meaningful spatial separation
+
+Interpretation
+- Hardness in SIFT is primarily a local graph structure phenomenon, not a spatial one
+- Hard queries are scattered spatially but fall into poorly connected index neighborhoods
+
