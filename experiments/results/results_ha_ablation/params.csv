@@ -1,0 +1,25 @@
+param,value
+dataset,SIFT1B-hardness
+experiment_type,ha_ablation
+dim,128
+n_index,10000000
+n_queries_total,5000000
+n_bins,10
+hardness_bin_edges,"[0.0, 0.0, 0.0, 0.1, 0.1, 0.2, 0.3, 0.3, 0.4, 0.6, 1.0]"
+ef_sweep,"[10, 50, 100, 200, 500]"
+k,10
+n_queries_per_bin,10000
+alpha,1.1
+max_layer,3
+hard_percentile,75.0
+warmup_ef,50
+sliding_window,200
+hard_rewire_cooldown,10
+rewire_k_nodes,5
+max_pool_size,50
+pool_seed_ef,20
+escalation_window,50
+escalation_trigger,0.3
+escalation_factor,3
+drift_schedule,"0:3000,1:3000,2:3000,3:3000,3:5000,4:3000,5:3000,6:3000,6:5000,7:3000,8:3000,9:3000,9:5000"
+rng_seed,42
