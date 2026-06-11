@@ -1,0 +1,177 @@
+[
+  {
+    "epoch_idx": 0,
+    "t_value": 0.0,
+    "ood_distance": 18.10702306987667,
+    "mmd_squared": 0.0,
+    "mean_nn_distance": 0.5685736536979675
+  },
+  {
+    "epoch_idx": 1,
+    "t_value": 0.0,
+    "ood_distance": 19.252496309125377,
+    "mmd_squared": 0.00138997208933221,
+    "mean_nn_distance": 0.0
+  },
+  {
+    "epoch_idx": 2,
+    "t_value": 0.0,
+    "ood_distance": 18.141805717591534,
+    "mmd_squared": 0.001459341868210685,
+    "mean_nn_distance": 0.0
+  },
+  {
+    "epoch_idx": 3,
+    "t_value": 0.0,
+    "ood_distance": 14.618320131563841,
+    "mmd_squared": 0.0011968828227164009,
+    "mean_nn_distance": 0.38509219884872437
+  },
+  {
+    "epoch_idx": 4,
+    "t_value": 0.0,
+    "ood_distance": 22.064220148837105,
+    "mmd_squared": 0.0017749273598220922,
+    "mean_nn_distance": 0.9539122581481934
+  },
+  {
+    "epoch_idx": 5,
+    "t_value": 0.0,
+    "ood_distance": 30.074465688292648,
+    "mmd_squared": 0.0027384759461789076,
+    "mean_nn_distance": 0.0
+  },
+  {
+    "epoch_idx": 6,
+    "t_value": 0.125,
+    "ood_distance": 73.70479100915172,
+    "mmd_squared": 0.015424743221208232,
+    "mean_nn_distance": 106.1530532836914
+  },
+  {
+    "epoch_idx": 7,
+    "t_value": 0.25,
+    "ood_distance": 143.2742434812182,
+    "mmd_squared": 0.05413270609214006,
+    "mean_nn_distance": 211.03250122070312
+  },
+  {
+    "epoch_idx": 8,
+    "t_value": 0.375,
+    "ood_distance": 208.73481660670458,
+    "mmd_squared": 0.10815473985456624,
+    "mean_nn_distance": 310.67132568359375
+  },
+  {
+    "epoch_idx": 9,
+    "t_value": 0.5,
+    "ood_distance": 270.05541129996857,
+    "mmd_squared": 0.1682599263352934,
+    "mean_nn_distance": 400.084716796875
+  },
+  {
+    "epoch_idx": 10,
+    "t_value": 0.5,
+    "ood_distance": 270.4063431134482,
+    "mmd_squared": 0.1689303897536654,
+    "mean_nn_distance": 400.8196105957031
+  },
+  {
+    "epoch_idx": 11,
+    "t_value": 0.5,
+    "ood_distance": 270.98720580244395,
+    "mmd_squared": 0.1676086824995072,
+    "mean_nn_distance": 399.39093017578125
+  },
+  {
+    "epoch_idx": 12,
+    "t_value": 0.5,
+    "ood_distance": 271.57134284926985,
+    "mmd_squared": 0.17066439473173914,
+    "mean_nn_distance": 401.1554870605469
+  },
+  {
+    "epoch_idx": 13,
+    "t_value": 0.5,
+    "ood_distance": 269.5049211977143,
+    "mmd_squared": 0.16750175001209106,
+    "mean_nn_distance": 400.2626647949219
+  },
+  {
+    "epoch_idx": 14,
+    "t_value": 0.5,
+    "ood_distance": 271.0779984756049,
+    "mmd_squared": 0.16989494632119498,
+    "mean_nn_distance": 401.8951110839844
+  },
+  {
+    "epoch_idx": 15,
+    "t_value": 0.5,
+    "ood_distance": 269.200443980949,
+    "mmd_squared": 0.16701608029401016,
+    "mean_nn_distance": 398.2534484863281
+  },
+  {
+    "epoch_idx": 16,
+    "t_value": 0.625,
+    "ood_distance": 329.2469804738496,
+    "mmd_squared": 0.23355723158508185,
+    "mean_nn_distance": 477.1241455078125
+  },
+  {
+    "epoch_idx": 17,
+    "t_value": 0.75,
+    "ood_distance": 378.30177062542003,
+    "mmd_squared": 0.28628118911809164,
+    "mean_nn_distance": 534.732421875
+  },
+  {
+    "epoch_idx": 18,
+    "t_value": 0.875,
+    "ood_distance": 420.6686116909581,
+    "mmd_squared": 0.3335210188559883,
+    "mean_nn_distance": 579.5762329101562
+  },
+  {
+    "epoch_idx": 19,
+    "t_value": 1.0,
+    "ood_distance": 456.8879116840137,
+    "mmd_squared": 0.3709048272865275,
+    "mean_nn_distance": 616.151123046875
+  },
+  {
+    "epoch_idx": 20,
+    "t_value": 1.0,
+    "ood_distance": 455.5587789043732,
+    "mmd_squared": 0.3668038369088811,
+    "mean_nn_distance": 615.7139892578125
+  },
+  {
+    "epoch_idx": 21,
+    "t_value": 1.0,
+    "ood_distance": 455.7689329755391,
+    "mmd_squared": 0.36879403136047195,
+    "mean_nn_distance": 614.5689697265625
+  },
+  {
+    "epoch_idx": 22,
+    "t_value": 1.0,
+    "ood_distance": 454.4316273837571,
+    "mmd_squared": 0.3669159437321962,
+    "mean_nn_distance": 613.9403686523438
+  },
+  {
+    "epoch_idx": 23,
+    "t_value": 1.0,
+    "ood_distance": 454.41632608978483,
+    "mmd_squared": 0.3684975992969376,
+    "mean_nn_distance": 614.7311401367188
+  },
+  {
+    "epoch_idx": 24,
+    "t_value": 1.0,
+    "ood_distance": 455.1313484374609,
+    "mmd_squared": 0.37166181167644685,
+    "mean_nn_distance": 613.640625
+  }
+]

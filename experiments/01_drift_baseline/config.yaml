@@ -1,0 +1,81 @@
+data:
+  base_path: /scratch/easchman/thesis/data/sift/sift_learn.fvecs
+  query_path: /scratch/easchman/thesis/data/sift/sift_query.fvecs
+  n_base: 5000000
+  n_queries_pool: 10000
+
+drift:
+  seed: 42
+  epoch_size: 500
+  n_epochs: 25
+  # Epochs 0-4: t=0.0 | 5-9: ramp 0→0.5 | 10-14: t=0.5 | 15-19: ramp 0.5→1.0 | 20-24: t=1.0
+  schedule_gradual:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.375
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.625
+    - 0.75
+    - 0.875
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+  # Epochs 0-12: t=0.0 | epochs 13-24: t=1.0
+  schedule_sudden:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+eval:
+  ef_search: [16, 32, 64, 128, 256, 512]
+  k: 10
+  k_groundtruth: 100
+
+output:
+  dataset_gradual_path: experiments/01_drift_baseline/dataset_gradual
+  dataset_sudden_path: experiments/01_drift_baseline/dataset_sudden
+  index_path: experiments/01_drift_baseline/index.bin
+  results_gradual: experiments/01_drift_baseline/results_gradual.csv
+  results_sudden: experiments/01_drift_baseline/results_sudden.csv
