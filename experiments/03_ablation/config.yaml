@@ -1,0 +1,52 @@
+data:
+  base_path: /scratch/easchman/thesis/data/sift/sift_learn.fvecs
+  query_path: /scratch/easchman/thesis/data/sift/sift_query.fvecs
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  M_conj: 8
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+
+ablation_conditions:
+  - name: none
+    max_repair_nodes: 500
+    diversity: false
+    two_hop: false
+  - name: coverage
+    max_repair_nodes: 5000
+    diversity: false
+    two_hop: false
+  - name: diversity
+    max_repair_nodes: 500
+    diversity: true
+    two_hop: false
+  - name: two_hop
+    max_repair_nodes: 500
+    diversity: false
+    two_hop: true
+  - name: all
+    max_repair_nodes: 5000
+    diversity: true
+    two_hop: true
+
+eval:
+  ef_search_values: [32, 64, 128]
+  primary_ef: 32
+  recall_k: 10
+
+output:
+  dataset_gradual_path: experiments/01_drift_baseline/dataset_gradual
+  index_path: experiments/01_drift_baseline/index.bin
+  results_dir: results/03_ablation
