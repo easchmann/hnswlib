@@ -1,0 +1,171 @@
+data:
+  base_path: /scratch/easchman/thesis/data/sift/sift_learn.fvecs
+  query_path: /scratch/easchman/thesis/data/sift/sift_query.fvecs
+  n_base: 5000000
+  n_queries_pool: 10000
+
+drift:
+  seed: 42
+  epoch_size: 500
+
+  # Epochs 0-11: t=0.0 | epochs 12-61: t=1.0  (62 epochs total)
+  schedule_sudden_plateau:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+  # Epochs 0-9: ramp t=0.0→0.9 (step 0.1) | epochs 10-59: t=1.0  (60 epochs total)
+  schedule_gradual_plateau:
+    - 0.0
+    - 0.1
+    - 0.2
+    - 0.3
+    - 0.4
+    - 0.5
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  M_conj: 48
+
+eval:
+  ef_search_values: [32, 64, 128]
+  primary_ef: 32
+  recall_k: 10
+  k_groundtruth: 100
+
+output:
+  dataset_sudden_plateau_path: results/10_plateau_stability/dataset_sudden_plateau
+  dataset_gradual_plateau_path: results/10_plateau_stability/dataset_gradual_plateau
+  index_path: experiments/01_drift_baseline/index.bin
+  results_dir: results/10_plateau_stability

@@ -1,0 +1,422 @@
+[
+  {
+    "epoch_idx": 0,
+    "t_value": 0.0,
+    "ood_distance": 18.10702306987667,
+    "mmd_squared": 0.0,
+    "mean_nn_distance": 0.5685736536979675
+  },
+  {
+    "epoch_idx": 1,
+    "t_value": 0.1,
+    "ood_distance": 58.12317060308238,
+    "mmd_squared": 0.010188143863809299,
+    "mean_nn_distance": 84.85912322998047
+  },
+  {
+    "epoch_idx": 2,
+    "t_value": 0.2,
+    "ood_distance": 116.31793196963596,
+    "mmd_squared": 0.0362633465126475,
+    "mean_nn_distance": 168.8060302734375
+  },
+  {
+    "epoch_idx": 3,
+    "t_value": 0.3,
+    "ood_distance": 170.67647665806896,
+    "mmd_squared": 0.07374936132700913,
+    "mean_nn_distance": 250.42698669433594
+  },
+  {
+    "epoch_idx": 4,
+    "t_value": 0.4,
+    "ood_distance": 222.22323880108453,
+    "mmd_squared": 0.12086958451502158,
+    "mean_nn_distance": 327.7370910644531
+  },
+  {
+    "epoch_idx": 5,
+    "t_value": 0.5,
+    "ood_distance": 272.22477749250277,
+    "mmd_squared": 0.17230785410747906,
+    "mean_nn_distance": 401.04168701171875
+  },
+  {
+    "epoch_idx": 6,
+    "t_value": 0.6,
+    "ood_distance": 317.01801553993204,
+    "mmd_squared": 0.21833986499906205,
+    "mean_nn_distance": 461.3993225097656
+  },
+  {
+    "epoch_idx": 7,
+    "t_value": 0.7,
+    "ood_distance": 359.62647245995515,
+    "mmd_squared": 0.2687461759394337,
+    "mean_nn_distance": 512.7893676757812
+  },
+  {
+    "epoch_idx": 8,
+    "t_value": 0.8,
+    "ood_distance": 396.4444296089103,
+    "mmd_squared": 0.30862702212028786,
+    "mean_nn_distance": 556.0244140625
+  },
+  {
+    "epoch_idx": 9,
+    "t_value": 0.9,
+    "ood_distance": 427.60880834464825,
+    "mmd_squared": 0.33990524400165245,
+    "mean_nn_distance": 588.0348510742188
+  },
+  {
+    "epoch_idx": 10,
+    "t_value": 1.0,
+    "ood_distance": 453.95977465749297,
+    "mmd_squared": 0.3657672743713348,
+    "mean_nn_distance": 613.6751708984375
+  },
+  {
+    "epoch_idx": 11,
+    "t_value": 1.0,
+    "ood_distance": 454.2000444857811,
+    "mmd_squared": 0.3656376675321092,
+    "mean_nn_distance": 613.94775390625
+  },
+  {
+    "epoch_idx": 12,
+    "t_value": 1.0,
+    "ood_distance": 456.495925195608,
+    "mmd_squared": 0.36981676382324247,
+    "mean_nn_distance": 613.7770385742188
+  },
+  {
+    "epoch_idx": 13,
+    "t_value": 1.0,
+    "ood_distance": 454.50565563632625,
+    "mmd_squared": 0.3670938836541669,
+    "mean_nn_distance": 614.0176391601562
+  },
+  {
+    "epoch_idx": 14,
+    "t_value": 1.0,
+    "ood_distance": 454.9290229359748,
+    "mmd_squared": 0.3669020704738206,
+    "mean_nn_distance": 615.019775390625
+  },
+  {
+    "epoch_idx": 15,
+    "t_value": 1.0,
+    "ood_distance": 453.5608700953719,
+    "mmd_squared": 0.36938443026310713,
+    "mean_nn_distance": 612.6996459960938
+  },
+  {
+    "epoch_idx": 16,
+    "t_value": 1.0,
+    "ood_distance": 455.9348609192732,
+    "mmd_squared": 0.36982721548926484,
+    "mean_nn_distance": 615.6550903320312
+  },
+  {
+    "epoch_idx": 17,
+    "t_value": 1.0,
+    "ood_distance": 455.322900675239,
+    "mmd_squared": 0.3670493943016907,
+    "mean_nn_distance": 613.9337768554688
+  },
+  {
+    "epoch_idx": 18,
+    "t_value": 1.0,
+    "ood_distance": 455.41858520471965,
+    "mmd_squared": 0.36901868795430515,
+    "mean_nn_distance": 613.9539794921875
+  },
+  {
+    "epoch_idx": 19,
+    "t_value": 1.0,
+    "ood_distance": 456.8879116840137,
+    "mmd_squared": 0.3709048272865275,
+    "mean_nn_distance": 616.151123046875
+  },
+  {
+    "epoch_idx": 20,
+    "t_value": 1.0,
+    "ood_distance": 455.5587789043732,
+    "mmd_squared": 0.3668038369088811,
+    "mean_nn_distance": 615.7139892578125
+  },
+  {
+    "epoch_idx": 21,
+    "t_value": 1.0,
+    "ood_distance": 455.7689329755391,
+    "mmd_squared": 0.36879403136047195,
+    "mean_nn_distance": 614.5689697265625
+  },
+  {
+    "epoch_idx": 22,
+    "t_value": 1.0,
+    "ood_distance": 454.4316273837571,
+    "mmd_squared": 0.3669159437321962,
+    "mean_nn_distance": 613.9403686523438
+  },
+  {
+    "epoch_idx": 23,
+    "t_value": 1.0,
+    "ood_distance": 454.41632608978483,
+    "mmd_squared": 0.3684975992969376,
+    "mean_nn_distance": 614.7311401367188
+  },
+  {
+    "epoch_idx": 24,
+    "t_value": 1.0,
+    "ood_distance": 455.1313484374609,
+    "mmd_squared": 0.37166181167644685,
+    "mean_nn_distance": 613.640625
+  },
+  {
+    "epoch_idx": 25,
+    "t_value": 1.0,
+    "ood_distance": 456.36621985889127,
+    "mmd_squared": 0.36847289758922597,
+    "mean_nn_distance": 613.5650634765625
+  },
+  {
+    "epoch_idx": 26,
+    "t_value": 1.0,
+    "ood_distance": 454.00723116603416,
+    "mmd_squared": 0.3672078870889014,
+    "mean_nn_distance": 612.8658447265625
+  },
+  {
+    "epoch_idx": 27,
+    "t_value": 1.0,
+    "ood_distance": 454.9847237085677,
+    "mmd_squared": 0.3669730712517085,
+    "mean_nn_distance": 614.1047973632812
+  },
+  {
+    "epoch_idx": 28,
+    "t_value": 1.0,
+    "ood_distance": 457.6591233981231,
+    "mmd_squared": 0.370876065958075,
+    "mean_nn_distance": 614.7435302734375
+  },
+  {
+    "epoch_idx": 29,
+    "t_value": 1.0,
+    "ood_distance": 456.6361991456417,
+    "mmd_squared": 0.3704390165513684,
+    "mean_nn_distance": 614.3569946289062
+  },
+  {
+    "epoch_idx": 30,
+    "t_value": 1.0,
+    "ood_distance": 453.6793308834165,
+    "mmd_squared": 0.36708471742781856,
+    "mean_nn_distance": 614.5491943359375
+  },
+  {
+    "epoch_idx": 31,
+    "t_value": 1.0,
+    "ood_distance": 456.0504493282828,
+    "mmd_squared": 0.36980152406535666,
+    "mean_nn_distance": 615.24365234375
+  },
+  {
+    "epoch_idx": 32,
+    "t_value": 1.0,
+    "ood_distance": 454.3938092492384,
+    "mmd_squared": 0.36705750203805243,
+    "mean_nn_distance": 614.9364013671875
+  },
+  {
+    "epoch_idx": 33,
+    "t_value": 1.0,
+    "ood_distance": 456.8300654258284,
+    "mmd_squared": 0.3715401263067314,
+    "mean_nn_distance": 613.6928100585938
+  },
+  {
+    "epoch_idx": 34,
+    "t_value": 1.0,
+    "ood_distance": 455.34123856330547,
+    "mmd_squared": 0.3696955279827695,
+    "mean_nn_distance": 614.5113525390625
+  },
+  {
+    "epoch_idx": 35,
+    "t_value": 1.0,
+    "ood_distance": 456.9692596373684,
+    "mmd_squared": 0.36924247132257576,
+    "mean_nn_distance": 615.2224731445312
+  },
+  {
+    "epoch_idx": 36,
+    "t_value": 1.0,
+    "ood_distance": 454.9282132473871,
+    "mmd_squared": 0.36843385415576735,
+    "mean_nn_distance": 614.357177734375
+  },
+  {
+    "epoch_idx": 37,
+    "t_value": 1.0,
+    "ood_distance": 455.02414146071663,
+    "mmd_squared": 0.3710861547955713,
+    "mean_nn_distance": 612.9635009765625
+  },
+  {
+    "epoch_idx": 38,
+    "t_value": 1.0,
+    "ood_distance": 454.6136302532804,
+    "mmd_squared": 0.3691926708465486,
+    "mean_nn_distance": 612.96533203125
+  },
+  {
+    "epoch_idx": 39,
+    "t_value": 1.0,
+    "ood_distance": 455.50250541226654,
+    "mmd_squared": 0.3698451654689461,
+    "mean_nn_distance": 612.7084350585938
+  },
+  {
+    "epoch_idx": 40,
+    "t_value": 1.0,
+    "ood_distance": 454.791931852371,
+    "mmd_squared": 0.3681537840391077,
+    "mean_nn_distance": 613.341796875
+  },
+  {
+    "epoch_idx": 41,
+    "t_value": 1.0,
+    "ood_distance": 457.49871094671244,
+    "mmd_squared": 0.3706525841058425,
+    "mean_nn_distance": 615.37353515625
+  },
+  {
+    "epoch_idx": 42,
+    "t_value": 1.0,
+    "ood_distance": 454.1443200809447,
+    "mmd_squared": 0.3664934365823743,
+    "mean_nn_distance": 613.6215209960938
+  },
+  {
+    "epoch_idx": 43,
+    "t_value": 1.0,
+    "ood_distance": 456.2131727074116,
+    "mmd_squared": 0.3693232893023901,
+    "mean_nn_distance": 614.8312377929688
+  },
+  {
+    "epoch_idx": 44,
+    "t_value": 1.0,
+    "ood_distance": 453.88579763954766,
+    "mmd_squared": 0.3660570980497815,
+    "mean_nn_distance": 613.2064819335938
+  },
+  {
+    "epoch_idx": 45,
+    "t_value": 1.0,
+    "ood_distance": 458.1407787526112,
+    "mmd_squared": 0.3718914553250847,
+    "mean_nn_distance": 615.5010986328125
+  },
+  {
+    "epoch_idx": 46,
+    "t_value": 1.0,
+    "ood_distance": 453.99075140690434,
+    "mmd_squared": 0.36534836225078315,
+    "mean_nn_distance": 614.1506958007812
+  },
+  {
+    "epoch_idx": 47,
+    "t_value": 1.0,
+    "ood_distance": 457.61580866959025,
+    "mmd_squared": 0.373374456940473,
+    "mean_nn_distance": 614.9614868164062
+  },
+  {
+    "epoch_idx": 48,
+    "t_value": 1.0,
+    "ood_distance": 455.3492867348927,
+    "mmd_squared": 0.3705176758152917,
+    "mean_nn_distance": 613.9237060546875
+  },
+  {
+    "epoch_idx": 49,
+    "t_value": 1.0,
+    "ood_distance": 455.4227133194412,
+    "mmd_squared": 0.3702850249976129,
+    "mean_nn_distance": 614.2229614257812
+  },
+  {
+    "epoch_idx": 50,
+    "t_value": 1.0,
+    "ood_distance": 454.5968981207139,
+    "mmd_squared": 0.36775848715181236,
+    "mean_nn_distance": 615.278564453125
+  },
+  {
+    "epoch_idx": 51,
+    "t_value": 1.0,
+    "ood_distance": 455.90331410911136,
+    "mmd_squared": 0.36681213036854954,
+    "mean_nn_distance": 614.7830200195312
+  },
+  {
+    "epoch_idx": 52,
+    "t_value": 1.0,
+    "ood_distance": 455.1214852559488,
+    "mmd_squared": 0.3689198967983424,
+    "mean_nn_distance": 612.8145141601562
+  },
+  {
+    "epoch_idx": 53,
+    "t_value": 1.0,
+    "ood_distance": 455.81194581836246,
+    "mmd_squared": 0.36964882909257823,
+    "mean_nn_distance": 615.7086791992188
+  },
+  {
+    "epoch_idx": 54,
+    "t_value": 1.0,
+    "ood_distance": 457.4353011880911,
+    "mmd_squared": 0.37130651488115224,
+    "mean_nn_distance": 615.072265625
+  },
+  {
+    "epoch_idx": 55,
+    "t_value": 1.0,
+    "ood_distance": 455.2991714511296,
+    "mmd_squared": 0.3663108124894196,
+    "mean_nn_distance": 615.4136352539062
+  },
+  {
+    "epoch_idx": 56,
+    "t_value": 1.0,
+    "ood_distance": 456.406127132305,
+    "mmd_squared": 0.3692232264296198,
+    "mean_nn_distance": 613.7566528320312
+  },
+  {
+    "epoch_idx": 57,
+    "t_value": 1.0,
+    "ood_distance": 456.4351064709734,
+    "mmd_squared": 0.3706723336214501,
+    "mean_nn_distance": 613.0107421875
+  },
+  {
+    "epoch_idx": 58,
+    "t_value": 1.0,
+    "ood_distance": 454.75472656717426,
+    "mmd_squared": 0.3683671924125005,
+    "mean_nn_distance": 614.030029296875
+  },
+  {
+    "epoch_idx": 59,
+    "t_value": 1.0,
+    "ood_distance": 458.07140131197895,
+    "mmd_squared": 0.37354514880456113,
+    "mean_nn_distance": 614.2728271484375
+  }
+]
