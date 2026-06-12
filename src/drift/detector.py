@@ -123,6 +123,7 @@ class DriftDetector:
         self.threshold = None
         self.reference_cell_histogram = None
         self.hot_cell_lambda = 2.0
+        self._sigma = None
 
     def calibrate(self, reference_eh, reference_cell_ids, n_null_samples=200, seed=42):
         """Calibrate on reference-distribution EH values. Call once after index construction."""
@@ -138,6 +139,7 @@ class DriftDetector:
             print("Warning: sigma near zero, setting sigma=1.0")
             sigma = 1.0
 
+        self._sigma = sigma
         self.kernel = RFFKernel(sigma, self._n_rff, self._rff_seed)
         self.reference_embedding = self.kernel.mean_embedding(reference_eh)
 
@@ -206,6 +208,44 @@ class DriftDetector:
             "hot_cells": hot_cells,
             "hot_cell_ratios": hot_ratios,
             "n_observations": self._buffer.n_observations,
+        }
+
+    def recalibrate(self, current_eh, current_cell_ids, epoch=None, n_null_samples=100, seed=42):
+        """Reset reference to current distribution; recompute threshold cheaply."""
+        current_eh = np.asarray(current_eh, dtype=np.float64)
+        current_cell_ids = np.asarray(current_cell_ids, dtype=np.int32)
+        rng = np.random.default_rng(seed)
+
+        self.reference_embedding = self.kernel.mean_embedding(current_eh)
+
+        n_cells = self._buffer._cell_histogram.shape[0]
+        counts = np.bincount(current_cell_ids, minlength=n_cells)
+        self.reference_cell_histogram = counts / (counts.sum() + 1e-10)
+
+        null_mmds = []
+        for _ in range(n_null_samples):
+            perm = rng.permutation(current_eh)
+            half = len(perm) // 2
+            null_mmds.append(compute_mmd_squared(perm[:half], perm[half:], self.kernel))
+        self.threshold = float(np.percentile(null_mmds, 95))
+
+        # Drop stale pre-recalibration observations
+        window_size = self._buffer._window_size
+        self._buffer = SlidingWindowBuffer(window_size, n_cells)
+        self._buffer.update_batch(current_eh, current_cell_ids)
+
+        epoch_str = f"epoch {epoch}" if epoch is not None else "?"
+        print(
+            f"Recalibrated at {epoch_str} | new EH mean={float(current_eh.mean()):.4f} | "
+            f"new threshold={self.threshold:.6f}"
+        )
+
+        return {
+            "sigma": self._sigma,
+            "threshold": self.threshold,
+            "n_reference_queries": len(current_eh),
+            "reference_eh_mean": float(current_eh.mean()),
+            "reference_eh_std": float(current_eh.std()),
         }
 
     def is_calibrated(self):

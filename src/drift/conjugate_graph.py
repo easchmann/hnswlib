@@ -113,6 +113,29 @@ class ConjugateGraph:
         top_k_idx = top_k_idx[np.argsort(dists_arr[top_k_idx])]
         return ids_arr[top_k_idx], dists_arr[top_k_idx]
 
+    def forget_old_edges(self, current_epoch, max_age_epochs):
+        """Remove all edges older than max_age_epochs. Returns count removed."""
+        to_remove = {}
+        for node_id, neighbors in self._edges.items():
+            old_indices = [
+                i for i, e in enumerate(neighbors)
+                if current_epoch - e.epoch_added > max_age_epochs
+            ]
+            if old_indices:
+                to_remove[node_id] = old_indices
+
+        removed = 0
+        for node_id, indices in to_remove.items():
+            for i in sorted(indices, reverse=True):
+                self._edges[node_id].pop(i)
+                removed += 1
+            if not self._edges[node_id]:
+                del self._edges[node_id]
+
+        self._total_edges -= removed
+        print(f"forget_old_edges: removed {removed} edges (age > {max_age_epochs} epochs)")
+        return removed
+
     def evict(self, current_epoch, n_evict=None):
         """Remove most stale edges globally. Returns count evicted."""
         if n_evict is None:

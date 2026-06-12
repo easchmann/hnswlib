@@ -1,0 +1,41 @@
+data:
+  # Reuses exp10 gradual-plateau dataset (ramp t=0→1 over epochs 0–9, plateau epochs 10–59)
+  dataset_path: results/10_plateau_stability/dataset_gradual_plateau
+  index_path: experiments/01_drift_baseline/index.bin
+
+drift:
+  # Phase boundaries used by plot_results.py for shading
+  ramp_start_epoch: 1    # first epoch with t > 0
+  plateau_start_epoch: 10 # first epoch with t = 1.0
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  M_conj: 48
+  # Rolling recalibration
+  recalibration_enabled: true
+  recal_slope_window: 8
+  recal_slope_threshold: 0.10
+  recal_min_epochs: 10
+  recal_forget_age: 10
+
+eval:
+  ef_search: 32
+  recall_k: 10
+  # Set to a small number (e.g. 5) for a quick smoke-test; null = run all epochs
+  n_epochs: null
+
+output:
+  results_dir: results/11_recalibration

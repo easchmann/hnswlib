@@ -190,6 +190,8 @@ class AdaptationManager:
         self._repair_cooldown = config.get("repair_cooldown", 0)
         self._eh_threshold_percentile = config.get("eh_threshold_percentile", 75.0)
         self._last_repair_epoch = -999
+        self._last_recal_epoch = -999
+        self._edges_added_history = []
 
     def process_epoch(self, queries, result_ids, result_distances, k):
         """Run one epoch: compute EH, update detector, optionally repair."""
@@ -256,6 +258,32 @@ class AdaptationManager:
                     f"{len(repair_nodes)} nodes)"
                 )
 
+        # Slope-based stabilisation recalibration
+        recalibrated = False
+        if repair_stats is not None:
+            self._edges_added_history.append(repair_stats["edges_added"])
+
+        if self.config.get("recalibration_enabled", True):
+            slope_window = self.config.get("recal_slope_window", 8)
+            slope_threshold = self.config.get("recal_slope_threshold", 0.10)
+            min_epochs = self.config.get("recal_min_epochs", 10)
+            epochs_since_recal = self.current_epoch - self._last_recal_epoch
+            if (
+                len(self._edges_added_history) >= slope_window
+                and mmd_sq is not None and mmd_sq > self.detector.threshold
+                and epochs_since_recal >= min_epochs
+            ):
+                window = self._edges_added_history[-slope_window:]
+                mean_rate = np.mean(window) + 1e-8
+                slope = np.polyfit(range(slope_window), window, 1)[0]
+                if abs(slope) / mean_rate < slope_threshold:
+                    self.detector.recalibrate(eh_values, cell_ids, epoch=self.current_epoch)
+                    forget_age = self.config.get("recal_forget_age", 10)
+                    self.conjugate_graph.forget_old_edges(self.current_epoch, forget_age)
+                    self._last_recal_epoch = self.current_epoch
+                    self._edges_added_history = []
+                    recalibrated = True
+
         self.current_epoch += 1
 
         return {
@@ -265,6 +293,7 @@ class AdaptationManager:
             "repair_stats": repair_stats,
             "mean_eh_this_epoch": float(np.mean(eh_values)),
             "n_queries": n_queries,
+            "recalibrated": recalibrated,
         }
 
     def search_enhanced(self, query_vectors, k, ef_search):
