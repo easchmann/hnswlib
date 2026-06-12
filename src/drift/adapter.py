@@ -187,6 +187,9 @@ class AdaptationManager:
         self.current_epoch = 0
         self._use_diversity = config.get("use_diversity", True)
         self._two_hop = config.get("two_hop", True)
+        self._repair_cooldown = config.get("repair_cooldown", 0)
+        self._eh_threshold_percentile = config.get("eh_threshold_percentile", 75.0)
+        self._last_repair_epoch = -999
 
     def process_epoch(self, queries, result_ids, result_distances, k):
         """Run one epoch: compute EH, update detector, optionally repair."""
@@ -215,16 +218,19 @@ class AdaptationManager:
 
         # 7. Repair if drift detected
         repair_stats = None
-        if drift_detected and hot_cells:
+        cooldown_ok = (self.current_epoch - self._last_repair_epoch) > self._repair_cooldown
+        if drift_detected and hot_cells and cooldown_ok:
             repair_nodes = find_repair_candidates(
                 hot_cells,
                 self.cell_labels,
                 self.node_eh_accumulator,
+                eh_threshold_percentile=self._eh_threshold_percentile,
                 max_nodes=self.config.get("max_repair_nodes", 1000),
                 last_repaired=self._node_repair_epoch,
                 use_diversity=self._use_diversity,
             )
             if len(repair_nodes) > 0:
+                self._last_repair_epoch = self.current_epoch
                 self._node_repair_epoch[repair_nodes] = self.current_epoch
                 candidates = compute_candidate_edges(
                     repair_nodes,
