@@ -1,0 +1,43 @@
+data:
+  base_path: /scratch/easchman/thesis/data/sift/sift_learn.fvecs
+  query_path: /scratch/easchman/thesis/data/sift/sift_query.fvecs
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  M_conj: 48
+
+# epochs at which to snapshot the conjugate graph state for the edge-count sweep
+checkpoint_epochs: [6, 8, 10, 14, 24]
+
+benchmark:
+  n_warmup_rounds: 5
+  n_bench_rounds: 20
+  ef_search_values: [16, 32, 64, 128]
+  primary_ef: 32
+  bench_epoch: 24          # which epoch's queries to use for timing
+  epoch_size: 500
+  n_repair_reps: 15        # how many fresh repair events to time
+  recall_k: 10
+
+output:
+  dataset_gradual_path: experiments/01_drift_baseline/dataset_gradual
+  index_path: experiments/01_drift_baseline/index.bin
+  results_dir: results/09_latency_benchmark
