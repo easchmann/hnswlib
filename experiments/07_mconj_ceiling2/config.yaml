@@ -1,0 +1,69 @@
+data:
+  base_path: /scratch/easchman/thesis/data/sift/sift_learn.fvecs
+  query_path: /scratch/easchman/thesis/data/sift/sift_query.fvecs
+
+drift:
+  schedule_gradual:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.375
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.625
+    - 0.75
+    - 0.875
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+
+conditions:
+  - name: mconj_56
+    M_conj: 56
+  - name: mconj_64
+    M_conj: 64
+
+eval:
+  ef_search_values: [32, 64, 128]
+  primary_ef: 32
+  recall_k: 10
+
+output:
+  dataset_gradual_path: experiments/01_drift_baseline/dataset_gradual
+  index_path: experiments/01_drift_baseline/index.bin
+  results_dir: results/07_mconj_ceiling2
+  exp04_results_dir: results/04_tuning
+  exp05_results_dir: results/05_mconj_cooldown
+  exp06_results_dir: results/06_mconj_ceiling
