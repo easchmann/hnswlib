@@ -52,7 +52,8 @@ def _save_results(rows, out_path):
     print(f"  Saved {len(rows)} rows -> {out_path}")
 
 
-def run_condition(dataset, index_path, base, cfg, condition_name, recalibration_enabled):
+def run_condition(dataset, index_path, base, cfg, condition_name, recalibration_enabled,
+                  recal_min_rate=None):
     """Run one condition (enabled / disabled); returns list of result rows."""
     adapt_cfg = cfg["adaptation"]
     eval_cfg = cfg["eval"]
@@ -103,6 +104,8 @@ def run_condition(dataset, index_path, base, cfg, condition_name, recalibration_
         "recal_slope_threshold": adapt_cfg.get("recal_slope_threshold", 0.10),
         "recal_min_epochs": adapt_cfg.get("recal_min_epochs", 10),
         "recal_forget_age": adapt_cfg.get("recal_forget_age", 10),
+        "recal_min_rate": (recal_min_rate if recal_min_rate is not None
+                           else adapt_cfg.get("recal_min_rate", 3000)),
     }
 
     cg = ConjugateGraph(
@@ -157,7 +160,7 @@ def run_condition(dataset, index_path, base, cfg, condition_name, recalibration_
     return rows
 
 
-def run_all(config_path, recalibration="both"):
+def run_all(config_path, recalibration="both", recal_min_rates=None):
     cfg = _load_config(config_path)
     results_dir = ROOT / cfg["output"]["results_dir"]
     index_path = str(ROOT / cfg["data"]["index_path"])
@@ -166,21 +169,25 @@ def run_all(config_path, recalibration="both"):
     dataset = load_drift_dataset(dataset_path)
     base = dataset["base"]
 
-    all_conditions = [(True, "recal_enabled"), (False, "recal_disabled")]
-    if recalibration == "enabled":
-        conditions = [all_conditions[0]]
-    elif recalibration == "disabled":
-        conditions = [all_conditions[1]]
-    else:
-        conditions = all_conditions
+    run_enabled = recalibration in ("enabled", "both")
+    run_disabled = recalibration in ("disabled", "both")
 
-    for enabled, name in conditions:
-        print(f"\n{'='*60}")
-        print(f"CONDITION: {name}")
-        print("=" * 60)
-        rows = run_condition(dataset, index_path, base, cfg, name, enabled)
-        out_csv = str(results_dir / f"{name}.csv")
-        _save_results(rows, out_csv)
+    if run_disabled:
+        print(f"\n{'='*60}\nCONDITION: recal_disabled\n{'='*60}")
+        rows = run_condition(dataset, index_path, base, cfg, "recal_disabled", False)
+        _save_results(rows, str(results_dir / "recal_disabled.csv"))
+
+    if run_enabled:
+        rates = recal_min_rates if recal_min_rates else [None]
+        for rate in rates:
+            if rate is None:
+                name = "recal_enabled"
+            else:
+                name = f"recal_enabled_minrate{rate}"
+            print(f"\n{'='*60}\nCONDITION: {name}\n{'='*60}")
+            rows = run_condition(dataset, index_path, base, cfg, name, True,
+                                 recal_min_rate=rate)
+            _save_results(rows, str(results_dir / f"{name}.csv"))
 
 
 def main():
@@ -191,8 +198,21 @@ def main():
         choices=["enabled", "disabled", "both"],
         default="both",
     )
+    parser.add_argument(
+        "--recal-min-rate",
+        default="0",
+        help="Comma-separated list of recal_min_rate values to sweep (0 = no floor).",
+    )
     args = parser.parse_args()
-    run_all(args.config, recalibration=args.recalibration)
+
+    raw_rates = [v.strip() for v in args.recal_min_rate.split(",")]
+    recal_min_rates = []
+    for v in raw_rates:
+        iv = int(v)
+        recal_min_rates.append(None if iv == 0 else iv)
+
+    run_all(args.config, recalibration=args.recalibration,
+            recal_min_rates=recal_min_rates)
 
 
 if __name__ == "__main__":

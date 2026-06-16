@@ -30,6 +30,7 @@ adaptation:
   recal_slope_threshold: 0.10
   recal_min_epochs: 10
   recal_forget_age: 10
+  recal_min_rate: 3000
 
 eval:
   ef_search: 32

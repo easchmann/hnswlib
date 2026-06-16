@@ -212,7 +212,6 @@ def main():
         return
 
     plot_figure1(data, cfg, figures_dir)
-    plot_figure2(data, cfg, figures_dir)
     print_summary(data, cfg)
 
 
