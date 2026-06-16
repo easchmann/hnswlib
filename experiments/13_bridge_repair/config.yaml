@@ -1,0 +1,38 @@
+data:
+  # Same dataset as exp11 (gradual ramp t=0→1 over epochs 0–9, plateau epochs 10–59)
+  dataset_path: experiments/10_plateau_stability/dataset_gradual_plateau
+  index_path: experiments/01_drift_baseline/index.bin
+
+drift:
+  ramp_start_epoch: 1
+  plateau_start_epoch: 10
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500_000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  M_conj: 48
+  # Recalibration disabled to isolate bridge repair effect
+  recalibration_enabled: false
+  # Bridge repair sweep parameter
+  bridge_repair_enabled: true
+  max_bridge_nodes: 500
+
+eval:
+  ef_search: 32
+  recall_k: 10
+  n_epochs: null
+
+output:
+  results_dir: results/13_bridge_repair
