@@ -220,6 +220,7 @@ class AdaptationManager:
 
         # 7. Repair if drift detected
         repair_stats = None
+        bridge_stats = None
         cooldown_ok = (self.current_epoch - self._last_repair_epoch) > self._repair_cooldown
         if drift_detected and hot_cells and cooldown_ok:
             repair_nodes = find_repair_candidates(
@@ -258,6 +259,14 @@ class AdaptationManager:
                     f"{len(repair_nodes)} nodes)"
                 )
 
+            # Bridge repair: connect stuck HNSW anchors to hot-cell neighborhoods
+            bridge_stats = self._run_bridge_repair(result_ids, queries, hot_cells)
+            if bridge_stats is not None and bridge_stats["bridge_nodes_found"] > 0:
+                print(
+                    f"Epoch {self.current_epoch}: bridge {bridge_stats['bridge_edges_added']} edges "
+                    f"({bridge_stats['bridge_nodes_found']} stuck nodes)"
+                )
+
         # Slope-based stabilisation recalibration
         recalibrated = False
         if repair_stats is not None:
@@ -276,7 +285,8 @@ class AdaptationManager:
                 window = self._edges_added_history[-slope_window:]
                 mean_rate = np.mean(window) + 1e-8
                 slope = np.polyfit(range(slope_window), window, 1)[0]
-                if abs(slope) / mean_rate < slope_threshold:
+                min_rate = self.config.get("recal_min_rate", 3000)
+                if abs(slope) / mean_rate < slope_threshold and mean_rate >= min_rate:
                     self.detector.recalibrate(eh_values, cell_ids, epoch=self.current_epoch)
                     forget_age = self.config.get("recal_forget_age", 10)
                     self.conjugate_graph.forget_old_edges(self.current_epoch, forget_age)
@@ -291,9 +301,97 @@ class AdaptationManager:
             "mmd_squared": mmd_sq,
             "hot_cells": hot_cells,
             "repair_stats": repair_stats,
+            "bridge_stats": bridge_stats,
             "mean_eh_this_epoch": float(np.mean(eh_values)),
             "n_queries": n_queries,
             "recalibrated": recalibrated,
+        }
+
+    def _run_bridge_repair(self, result_ids, queries, hot_cells):
+        """Add conjugate edges from stuck HNSW anchors toward hot-cell neighborhoods.
+
+        Stuck nodes: appear in many HNSW top-k results, have high EH, are outside hot cells.
+        For each stuck node, search HNSW from the nearest hot-cell centroid and add bridge
+        edges (src=stuck, dst=hot-cell neighbors) with rng_relaxation=0 so RNG doesn't
+        reject cross-region edges.
+        """
+        if not self.config.get("bridge_repair_enabled", True):
+            return None
+        if not hot_cells:
+            return None
+
+        # Count how many queries each node appeared in this epoch
+        visit_counts = {}
+        for ids in result_ids:
+            for nid in ids:
+                visit_counts[int(nid)] = visit_counts.get(int(nid), 0) + 1
+
+        if not visit_counts:
+            return {"bridge_nodes_found": 0, "bridge_edges_added": 0, "bridge_edges_attempted": 0}
+
+        visited_nodes = np.array(list(visit_counts.keys()), dtype=np.int64)
+        counts = np.array([visit_counts[int(n)] for n in visited_nodes])
+        eh_vals = self.node_eh_accumulator[visited_nodes]
+
+        median_count = np.median(counts)
+        eh_threshold = np.percentile(eh_vals, 75)
+
+        # Exclude nodes already assigned to a hot cell
+        hot_set = set(hot_cells)
+        in_hot = np.isin(self.cell_labels[visited_nodes], list(hot_set))
+
+        mask = (counts > median_count) & (eh_vals >= eh_threshold) & (~in_hot)
+        stuck_nodes = visited_nodes[mask]
+
+        max_bridge = self.config.get(
+            "max_bridge_nodes", self.config.get("max_repair_nodes", 1000)
+        )
+        if len(stuck_nodes) > max_bridge:
+            order = np.argsort(self.node_eh_accumulator[stuck_nodes])[::-1]
+            stuck_nodes = stuck_nodes[order[:max_bridge]]
+
+        print(f"  Bridge repair: {len(stuck_nodes)} stuck nodes identified")
+        if len(stuck_nodes) == 0:
+            return {"bridge_nodes_found": 0, "bridge_edges_added": 0, "bridge_edges_attempted": 0}
+
+        hot_cell_centroids = self._centroids[list(hot_cells)]
+        M_candidates = self.config.get("M_candidates", 32)
+        ef_search = self.config.get("repair_ef_search", 200)
+        old_ef = self.index.ef
+        self.index.set_ef(ef_search)
+
+        candidate_edges = {}
+        for i, stuck_node in enumerate(stuck_nodes):
+            if i > 0 and i % 100 == 0:
+                print(f"  bridge repair: {i}/{len(stuck_nodes)}")
+            node_vec = self.base[int(stuck_node)].astype(np.float64)
+            diffs = hot_cell_centroids.astype(np.float64) - node_vec[np.newaxis, :]
+            nearest_centroid = hot_cell_centroids[np.argmin(np.sum(diffs ** 2, axis=1))]
+            labels, distances = self.index.knn_query(
+                nearest_centroid.astype(np.float32), k=M_candidates
+            )
+            candidate_edges[int(stuck_node)] = [
+                (int(nid), float(d))
+                for nid, d in zip(labels[0], distances[0])
+                if int(nid) != int(stuck_node)
+            ]
+
+        self.index.set_ef(old_ef)
+
+        stats = apply_repairs(
+            candidate_edges,
+            self.conjugate_graph,
+            t_added=self.current_epoch / max(1, self.config.get("n_epochs", 25)),
+            epoch_added=self.current_epoch,
+            current_epoch=self.current_epoch,
+            base=self.base,
+            rng_relaxation=0,
+        )
+
+        return {
+            "bridge_nodes_found": int(len(stuck_nodes)),
+            "bridge_edges_added": stats["edges_added"],
+            "bridge_edges_attempted": stats["edges_attempted"],
         }
 
     def search_enhanced(self, query_vectors, k, ef_search):
