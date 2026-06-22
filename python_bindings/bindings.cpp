@@ -997,6 +997,16 @@ PYBIND11_PLUGIN(hnswlib) {
                 (hnswlib::tableint)node_id, target_layer);
         }, py::arg("node_id"), py::arg("target_layer") = 1)
 
+        .def("add_layer0_edge", [](Index<float> &index, size_t src, size_t dst) {
+            index.appr_alg->add_layer0_edge(
+                (hnswlib::tableint)src, (hnswlib::tableint)dst);
+        }, py::arg("src"), py::arg("dst"))
+
+        .def("add_layer0_edge_evict", [](Index<float> &index, size_t src, size_t dst) -> bool {
+            return index.appr_alg->add_layer0_edge_evict(
+                (hnswlib::tableint)src, (hnswlib::tableint)dst);
+        }, py::arg("src"), py::arg("dst"))
+
         .def("add_directed_edges", [](Index<float> &index,
                                     py::array_t<float, py::array::c_style | py::array::forcecast> target,
                                     int layer,
@@ -1019,8 +1029,8 @@ PYBIND11_PLUGIN(hnswlib) {
 
         // Add dst to src's neighbor list at level, evicting the farthest neighbor if full.
         // No-op if dst is already a neighbor of src.  Both nodes must exist at level.
-        .def("add_back_edge", [](Index<float> &index, size_t src, size_t dst, int level) {
-            index.appr_alg->addBackEdge(
+        .def("add_back_edge", [](Index<float> &index, size_t src, size_t dst, int level) -> bool {
+            return index.appr_alg->addBackEdge(
                 (hnswlib::tableint)src, (hnswlib::tableint)dst, level);
         }, py::arg("src"), py::arg("dst"), py::arg("level"))
 

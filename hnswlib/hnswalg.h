@@ -1643,6 +1643,51 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     }
 
+    // inject a directed edge src->dst into layer-0; no-op if dst already a neighbor or src is at capacity
+    void add_layer0_edge(tableint src, tableint dst) {
+        linklistsizeint *ll = get_linklist0(src);
+        size_t sz = getListCount(ll);
+        if (sz >= maxM0_) return;
+        tableint *data = (tableint *)(ll + 1);
+        for (size_t i = 0; i < sz; i++)
+            if (data[i] == dst) return;
+        data[sz] = dst;
+        setListCount(ll, sz + 1);
+    }
+
+    // inject src->dst into layer-0 with eviction: if at capacity, evict the farthest neighbor if dst is closer
+    bool add_layer0_edge_evict(tableint src, tableint dst) {
+        if (src == dst) return false;
+        linklistsizeint *ll = get_linklist0(src);
+        size_t sz = getListCount(ll);
+        tableint *data = (tableint *)(ll + 1);
+
+        for (size_t i = 0; i < sz; i++)
+            if (data[i] == dst) return false;
+
+        if (sz < maxM0_) {
+            data[sz] = dst;
+            setListCount(ll, sz + 1);
+            return true;
+        }
+
+        const void *src_vec = getDataByInternalId(src);
+        dist_t dst_dist = fstdistfunc_(src_vec, getDataByInternalId(dst), dist_func_param_);
+
+        size_t farthest_idx = 0;
+        dist_t farthest_dist = 0;
+        for (size_t i = 0; i < sz; i++) {
+            dist_t d = fstdistfunc_(src_vec, getDataByInternalId(data[i]), dist_func_param_);
+            if (d > farthest_dist) { farthest_dist = d; farthest_idx = i; }
+        }
+
+        if (dst_dist < farthest_dist) {
+            data[farthest_idx] = dst;
+            return true;
+        }
+        return false;
+    }
+
     // promote an existing node to target_level and wire it into the graph at every new level/layer using the standard neighbour selection heuristic
     // only difference to addPoint is that the node already exisits in the index and we only add upper-layer connections for a node that previously existed at lower levels only.
     tableint promoteNodeToLayer(tableint node_id, int target_level){
@@ -1829,12 +1874,12 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
     // Add dst to src's neighbor list at `level`, evicting the farthest current neighbor if the list is already at capacity. 
     // No-op if dst is already present.  Both src and dst must exist at `level`.
-    void addBackEdge(tableint src, tableint dst, int level) {
+    bool addBackEdge(tableint src, tableint dst, int level) {
         if (src >= cur_element_count)
             throw std::runtime_error("addBackEdge: src out of range");
         if (dst >= cur_element_count)
             throw std::runtime_error("addBackEdge: dst out of range");
-        if (src == dst) return;
+        if (src == dst) return false;
         if (level < 0 || level > maxlevel_)
             throw std::runtime_error("addBackEdge: level out of range");
         if (level > element_levels_[src])
@@ -1851,13 +1896,14 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
 
         // Idempotent: skip if dst is already a neighbor of src
         for (size_t i = 0; i < cur_size; i++) {
-            if (neighbors[i] == dst) return;
+            if (neighbors[i] == dst) return false;
         }
 
         if (cur_size < max_size) {
             // There is room —> just append
             neighbors[cur_size] = dst;
             setListCount(ll, cur_size + 1);
+            return true;
         } else {
             // List full —> evict the farthest current neighbor if dst is closer
             const void* src_data = getDataByInternalId(src);
@@ -1871,7 +1917,9 @@ class HierarchicalNSW : public AlgorithmInterface<dist_t> {
             }
             if (dst_dist < worst_dist) {
                 neighbors[worst_idx] = dst;
+                return true;
             }
+            return false;
         }
     }
 
