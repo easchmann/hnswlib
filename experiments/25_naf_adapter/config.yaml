@@ -1,0 +1,38 @@
+dataset_path: experiments/01_drift_baseline/dataset_gradual
+index_path: experiments/01_drift_baseline/index.bin
+ef_values: [32, 64, 128]
+primary_ef: 32
+k: 10
+
+# EH-based AdaptationManager (from exp08)
+window_size: 500
+M_candidates: 32
+ef_repair: 200
+cooldown: 0
+M_conj: 48
+n_cells: 100
+n_rff: 256
+max_total_edges: 500000
+hot_cell_lambda: 2.0
+n_calibration_epochs: 5
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+
+# NAF-based adapter (HNSW pool)
+naf_hot_k: 50
+naf_ef_repair: 200
+naf_n_neighbors: 16
+naf_M_conj: 48
+
+# NAF-based adapter (FAISS exact pool — same hot_k to isolate pool quality effect)
+naf_exact_hot_k: 50
+naf_exact_ef_repair: 200
+naf_exact_n_neighbors: 16
+naf_exact_M_conj: 48
+
+# Drift phase boundaries for plot annotations (epoch indices where t changes)
+drift_transition_epochs: [5, 10, 15, 20]
+
+results_path: experiments/25_naf_adapter/results.json
