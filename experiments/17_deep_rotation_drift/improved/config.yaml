@@ -1,0 +1,66 @@
+# Sub-experiment: ImprovedAdaptationManager on DEEP-96 rotation drift.
+# Reuses the index from exp16 and the datasets built by exp17 — no rebuild needed.
+#
+# Three conditions (both gradual + sudden schedules):
+#   static            – plain HNSW, no adaptation
+#   adaptive_current  – original AdaptationManager, max_total_edges=1M  (matches exp17)
+#   adaptive_improved – ImprovedAdaptationManager,  max_total_edges=5M  (scaled for 10M-node index)
+#
+# Key changes vs original exp17:
+#   max_total_edges_improved: 1M → 5M  (budget-coverage ratio matches SIFT1M ImprovedAdapter)
+#   repair mechanism: per-query visited-node repair replaces hot-cell batch repair
+
+# --- Paths (cluster-relative from repo root) ---
+index_path:       experiments/16_deep_cluster_drift/index.bin
+dataset_gradual:  experiments/17_deep_rotation_drift/dataset_gradual
+dataset_sudden:   experiments/17_deep_rotation_drift/dataset_sudden
+
+# --- Output ---
+results_gradual:  experiments/17_deep_rotation_drift/improved/results_gradual.csv
+results_sudden:   experiments/17_deep_rotation_drift/improved/results_sudden.csv
+
+# --- Evaluation ---
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# --- EH detector (identical to original exp17) ---
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# --- Conjugate graph ---
+M_conj: 48
+max_total_edges_current:  1000000   # matches exp17; adaptive_current uses this
+max_total_edges_improved: 5000000   # ~1% of 10M nodes at M_conj=48; adaptive_improved uses this
+
+# --- Repair (adaptive_current, same as exp17) ---
+M_candidates: 32
+repair_ef_search: 400
+repair_cooldown: 0
+max_repair_nodes: 2000
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# --- ImprovedAdaptationManager (adaptive_improved) ---
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# --- Plot annotations ---
+plots_dir: experiments/17_deep_rotation_drift/improved/plots
+# epoch indices where the drift parameter t changes value
+drift_transition_epochs_gradual: [5, 8, 15, 18]
+drift_transition_epochs_sudden: [13]
+# full-drift plateau: epochs where t=1.0 in both schedules
+plateau_start: 18
+plateau_end: 24

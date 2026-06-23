@@ -1,0 +1,43 @@
+# Dataset build config for the 50-epoch convergence study
+# Used by experiments/17_deep_rotation_drift/build_dataset.py.
+#
+# Transition phases are identical to the 25-epoch schedule;
+# the full-drift plateau is extended to 32 epochs (gradual) / 37 epochs (sudden)
+# so that the ImprovedAdaptationManager can reach a true recall plateau.
+
+data:
+  hdf5_path: /scratch/easchman/thesis/data/deep/deep-image-96-angular.hdf5
+
+drift:
+  epoch_size: 500
+  base_seed: 42
+  rotation_seed: 1234
+
+  # Gradual schedule (50 epochs):
+  #   0–4:   t=0.0  (pre-drift, 5 epochs)
+  #   5–8:   ramp 0.0→0.5 (phase 1)
+  #   9–13:  t=0.5  (stable mid-drift, 5 epochs)
+  #   14–17: ramp 0.5→1.0 (phase 2)
+  #   18–49: t=1.0  (extended plateau, 32 epochs)
+  schedule_gradual:
+    [0.0, 0.0, 0.0, 0.0, 0.0,
+     0.125, 0.25, 0.375, 0.5,
+     0.5, 0.5, 0.5, 0.5, 0.5,
+     0.625, 0.75, 0.875, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0]
+
+  # Sudden schedule (50 epochs):
+  #   0–12:  t=0.0  (pre-drift, 13 epochs)
+  #   13–49: t=1.0  (post-drift, 37 epochs)
+  schedule_sudden:
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+     1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+output:
+  dataset_gradual_path: experiments/17_deep_rotation_drift/dataset_gradual_50ep
+  dataset_sudden_path:  experiments/17_deep_rotation_drift/dataset_sudden_50ep
