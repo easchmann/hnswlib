@@ -192,6 +192,8 @@ class AdaptationManager:
         self._last_repair_epoch = -999
         self._last_recal_epoch = -999
         self._edges_added_history = []
+        self._entry_point_adapt = config.get("entry_point_adaptation", False)
+        self._current_entry_point = None
 
     def process_epoch(self, queries, result_ids, result_distances, k):
         """Run one epoch: compute EH, update detector, optionally repair."""
@@ -267,6 +269,23 @@ class AdaptationManager:
                     f"({bridge_stats['bridge_nodes_found']} stuck nodes)"
                 )
 
+        # Upper-layer rewiring: for hard queries in hot cells, add corrective
+        # edges directly into the HNSW graph's upper layers so future greedy
+        # descent navigates toward the drifted query region instead of away.
+        upper_rewire_stats = None
+        if drift_detected and hot_cells and self.config.get("upper_layer_rewire", False):
+            upper_rewire_stats = self._run_upper_layer_rewire(queries, eh_values, cell_ids, hot_cells)
+            if upper_rewire_stats["edges_added"] > 0:
+                print(
+                    f"Epoch {self.current_epoch}: upper rewire +{upper_rewire_stats['edges_added']} "
+                    f"edges ({upper_rewire_stats['queries_rewired']} queries)"
+                )
+
+        entry_point_node = None
+        if self._entry_point_adapt and drift_detected:
+            entry_point_node = self._adapt_entry_point(queries)
+            print(f"Epoch {self.current_epoch}: entry point → node {entry_point_node}")
+
         # Slope-based stabilisation recalibration
         recalibrated = False
         if repair_stats is not None:
@@ -302,9 +321,11 @@ class AdaptationManager:
             "hot_cells": hot_cells,
             "repair_stats": repair_stats,
             "bridge_stats": bridge_stats,
+            "upper_rewire_stats": upper_rewire_stats,
             "mean_eh_this_epoch": float(np.mean(eh_values)),
             "n_queries": n_queries,
             "recalibrated": recalibrated,
+            "entry_point_node": entry_point_node,
         }
 
     def _run_bridge_repair(self, result_ids, queries, hot_cells):
@@ -393,6 +414,48 @@ class AdaptationManager:
             "bridge_edges_added": stats["edges_added"],
             "bridge_edges_attempted": stats["edges_attempted"],
         }
+
+    def _run_upper_layer_rewire(self, queries, eh_values, cell_ids, hot_cells):
+        """Add corrective upper-layer edges to HNSW for hard queries in hot cells.
+
+        Calls rewire_for_query on selected queries so the greedy descent in upper
+        layers builds shortcuts toward the drifted query region.
+        """
+        hot_set = set(hot_cells)
+        in_hot = np.array([c in hot_set for c in cell_ids])
+        eh_thresh = np.percentile(
+            eh_values, self.config.get("rewire_eh_percentile", 50.0)
+        )
+        mask = in_hot & (eh_values >= eh_thresh)
+        hard_query_idx = np.where(mask)[0]
+
+        max_q = self.config.get("rewire_max_queries", 100)
+        if len(hard_query_idx) > max_q:
+            order = np.argsort(eh_values[hard_query_idx])[::-1]
+            hard_query_idx = hard_query_idx[order[:max_q]]
+
+        alpha = self.config.get("rewire_alpha", 1.3)
+        max_layer = self.config.get("rewire_max_layer", 2)
+        total_edges = 0
+        for qi in hard_query_idx:
+            n_added = self.index.rewire_for_query(
+                queries[qi].astype(np.float32), max_layer, alpha
+            )
+            total_edges += n_added
+
+        return {"queries_rewired": int(len(hard_query_idx)), "edges_added": int(total_edges)}
+
+    def _adapt_entry_point(self, queries):
+        """Set HNSW entry point to the node nearest the epoch's query centroid."""
+        centroid = queries.mean(axis=0).astype(np.float32)
+        old_ef = self.index.ef
+        self.index.set_ef(self.config.get("primary_ef", 32))
+        labels, _ = self.index.knn_query(centroid, k=1)
+        self.index.set_ef(old_ef)
+        node_id = int(labels[0][0])
+        self.index.set_entry_point(node_id)
+        self._current_entry_point = node_id
+        return node_id
 
     def search_enhanced(self, query_vectors, k, ef_search):
         """Primary HNSW search augmented with conjugate graph one-hop expansion."""
