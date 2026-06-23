@@ -1,0 +1,108 @@
+data:
+  collection_tsv: /scratch/easchman/thesis/data/msmarco/collection.tsv
+  queries_tsv: /scratch/easchman/thesis/data/msmarco/queries.dev.small.tsv
+  qrels_tsv: /scratch/easchman/thesis/data/msmarco/qrels.dev.small.tsv
+  embeddings_dir: /scratch/easchman/thesis/data/msmarco/embeddings
+  n_base_vectors: 5000000
+  model_name: all-MiniLM-L6-v2
+  embed_batch_size: 512
+
+focused_ood:
+  n_clusters: 10
+  seed: 42
+  top_n_values: [167, 500, 1000]
+
+drift:
+  epoch_size: 500
+  base_seed: 42
+  schedule_gradual:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.375
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.625
+    - 0.75
+    - 0.875
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+  schedule_sudden:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+  path: experiments/18_msmarco_rotation_drift/index.bin   # reuse exp18 index
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  bridge_repair_enabled: false
+  recalibration_enabled: false
+
+conditions:
+  - name: static
+    method: static
+  - name: adaptive_mconj48
+    method: adaptive
+    M_conj: 48
+
+eval:
+  ef_search_values: [32, 64, 128]
+  primary_ef: 32
+  recall_k: 10
+
+output:
+  results_dir: experiments/21_msmarco_topn_ood
