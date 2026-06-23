@@ -1,0 +1,138 @@
+data:
+  hdf5_path: /scratch/easchman/thesis/data/deep/deep-image-96-angular.hdf5
+  n_base_vectors: 9990000   # set to e.g. 5000000 to use 5M subset
+
+drift:
+  n_clusters: 10
+  n_hot_clusters: 3    # lowest-recall clusters → drawn from at t=1
+  n_cold_clusters: 2   # highest-recall clusters → drawn from at t=0 (bimodal only)
+  bimodal: true        # t=0 draws from cold (easy) clusters; t=1 from hot (hard) clusters
+  epoch_size: 500
+  base_seed: 42
+  # null means auto-detect via recall diagnostic in build_dataset.py
+  hot_cluster_ids: null
+  cold_cluster_ids: null
+  schedule_gradual:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.375
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.625
+    - 0.75
+    - 0.875
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+  schedule_sudden:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+index:
+  M: 16
+  ef_construction: 200
+  seed: 1234
+
+adaptation:
+  window_size: 500
+  n_cells: 100
+  n_rff: 256
+  max_total_edges: 500000
+  M_candidates: 32
+  ef_repair: 200
+  rng_relaxation: 0
+  hot_cell_lambda: 2.0
+  n_calibration_epochs: 5
+  max_repair_nodes: 500
+  eh_threshold_percentile: 75.0
+  repair_cooldown: 0
+  two_hop: true
+  diversity: false
+  # upper-layer rewiring: fix navigational failures in HNSW upper layers
+  upper_layer_rewire: false   # overridden per-condition below
+  rewire_alpha: 1.3           # add edge when greedy path is >alpha× suboptimal
+  rewire_max_layer: 2         # rewire layers 1..max_layer
+  rewire_max_queries: 100     # max hard queries to rewire per epoch
+  rewire_eh_percentile: 50.0  # EH threshold within hot-cell queries
+  entry_point_adaptation: false  # overridden per-condition below
+
+naf_hot_k: 50
+naf_ef_repair: 200
+naf_n_neighbors: 16
+naf_M_conj: 48
+
+naf_exact_hot_k: 50
+naf_exact_ef_repair: 200
+naf_exact_n_neighbors: 16
+naf_exact_M_conj: 48
+
+conditions:
+  - name: static
+    method: static
+  - name: adaptive_mconj48
+    method: adaptive
+    M_conj: 48
+  - name: adaptive_mconj48_rewire
+    method: adaptive
+    M_conj: 48
+    upper_layer_rewire: true
+    entry_point_adaptation: true
+  - name: adaptive_mconj48_promote
+    method: adaptive
+    M_conj: 48
+    node_promotion: true
+    n_promote: 200          # nodes to promote per trigger
+    promote_layer: 1        # target HNSW layer
+    promote_refresh: false  # set true to re-evaluate candidates each drift epoch
+  - name: adaptive_naf
+    method: naf
+  - name: adaptive_naf_exact
+    method: naf_exact
+
+eval:
+  ef_search_values: [32, 64, 128]
+  primary_ef: 32
+  recall_k: 10
+
+output:
+  dataset_gradual_path: experiments/16_deep_cluster_drift/dataset_gradual
+  dataset_sudden_path: experiments/16_deep_cluster_drift/dataset_sudden
+  index_path: experiments/16_deep_cluster_drift/index.bin
+  results_dir: results/16_deep_cluster_drift
