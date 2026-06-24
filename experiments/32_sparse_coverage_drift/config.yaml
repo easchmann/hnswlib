@@ -1,0 +1,107 @@
+# ── Build params (build_dataset.py) ───────────────────────────────────────────
+data:
+  hdf5_path: /scratch/easchman/thesis/data/deep/deep-image-96-angular.hdf5
+  n_base_vectors: 9990000
+
+drift:
+  n_clusters: 50          # finer granularity → sparser per-cluster coverage than exp16's 10
+  n_hot_clusters: 3
+  k_density: 200          # base vectors used to estimate local density per centroid
+  cluster_selection: sparse_coverage
+  hot_cluster_ids: null   # auto-selected by sparse criterion
+  epoch_size: 500
+  base_seed: 42
+  schedule_gradual:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.375
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.5
+    - 0.625
+    - 0.75
+    - 0.875
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+  schedule_sudden:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+
+output:
+  dataset_gradual_path: experiments/32_sparse_coverage_drift/dataset_gradual
+  dataset_sudden_path:  experiments/32_sparse_coverage_drift/dataset_sudden
+  index_path:           experiments/16_deep_cluster_drift/index.bin
+
+# ── Run params (run_experiment.py — flat keys matching exp30 config) ──────────
+dataset_grad:   experiments/32_sparse_coverage_drift/dataset_gradual
+dataset_sudden: experiments/32_sparse_coverage_drift/dataset_sudden
+index_path:     experiments/16_deep_cluster_drift/index.bin
+ef_values: [32, 64, 128]
+k: 10
+primary_ef: 32
+
+eh_window_size: 500
+eh_n_cells: 100
+eh_n_rff: 256
+eh_hot_cell_lambda: 2.0
+eh_n_calibration_epochs: 5
+
+eh_M_candidates: 32
+eh_ef_repair: 200
+eh_cooldown: 0
+eh_M_conj: 48
+eh_max_total_edges: 500000
+eh_max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+eh_rng_relaxation: 0
+eh_two_hop: true
+
+l0_M_candidates: 32
+l0_ef_repair: 200
+l0_cooldown: 0
+l0_max_repair_nodes: 500
+l0_threshold_percentile: 75.0
+
+drift_transition_epochs_gradual: [5, 15]
+drift_transition_epochs_sudden: [13]
+
+results_gradual: experiments/32_sparse_coverage_drift/results_gradual.csv
+results_sudden:  experiments/32_sparse_coverage_drift/results_sudden.csv
+plots_dir:       experiments/32_sparse_coverage_drift/plots
