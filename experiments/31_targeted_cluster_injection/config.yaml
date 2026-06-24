@@ -1,0 +1,44 @@
+dataset_grad:   experiments/16_deep_cluster_drift/dataset_gradual
+dataset_sudden: experiments/16_deep_cluster_drift/dataset_sudden
+index_path:     experiments/16_deep_cluster_drift/index.bin
+ef_values: [32, 64, 128]
+k: 10
+primary_ef: 32
+
+# EH detector — same as exp30 for comparability
+eh_window_size: 500
+eh_n_cells: 100
+eh_n_rff: 256
+eh_hot_cell_lambda: 2.0
+eh_n_calibration_epochs: 5
+
+# Conjugate EH (replication anchor — exp30/exp16 values)
+eh_M_candidates: 32
+eh_ef_repair: 200
+eh_cooldown: 0
+eh_M_conj: 48
+eh_max_total_edges: 500000
+eh_max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+eh_rng_relaxation: 0
+eh_two_hop: true
+
+# Layer0EHAdapter — replication anchor from exp30
+l0_M_candidates: 32
+l0_ef_repair: 200
+l0_cooldown: 0
+l0_max_repair_nodes: 500
+l0_threshold_percentile: 75.0
+
+# TargetedClusterAdapter — geometry-aware injection
+tc_n_inject_candidates: 32   # within-cell FAISS neighbors to try per node
+tc_max_hot_nodes: 500000  # cap on hot-cell nodes before random subsample
+tc_retrigger: false # if true, re-inject when hot_cells change
+
+# Plot annotations — derived from exp16 schedule
+drift_transition_epochs_gradual: [5, 15]
+drift_transition_epochs_sudden: [13]
+
+results_gradual: experiments/31_targeted_cluster_injection/results_gradual.csv
+results_sudden:  experiments/31_targeted_cluster_injection/results_sudden.csv
+plots_dir:       experiments/31_targeted_cluster_injection/plots
