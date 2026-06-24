@@ -1,0 +1,55 @@
+# Experiment 35 BIGANN-10M with 5M-edge budget (budget-coverage sparsity hypothesis).
+# Identical to config_bigann10m.yaml except max_total_edges=5_000_000 and separate output paths.
+# Hypothesis: BIGANN10M's 56%/43% recovery (vs 99%/86% on SIFT1M) is explained by the
+# fixed 500K budget covering only 0.1% of the 10M-node index. Scaling to 5M edges
+# (1% coverage, same as SIFT1M) should substantially increase recovery.
+index_path:      experiments/35_improved_adapter/bigann10m/index.bin
+dataset_gradual: experiments/35_improved_adapter/bigann10m/dataset_gradual
+dataset_sudden:  experiments/35_improved_adapter/bigann10m/dataset_sudden
+n_base: 10000000
+
+# Output — separate subdir to keep alongside bigann10m/ for direct comparison
+results_gradual: experiments/35_improved_adapter/bigann10m_5m/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/bigann10m_5m/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/bigann10m_5m/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — identical to config_bigann10m.yaml
+n_calibration_epochs: 6
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — 5M edges (10x the 500K budget; same fraction as SIFT1M at 1M scale)
+# M_conj unchanged at 48: extra budget increases coverage breadth, not per-node depth.
+M_conj: 48
+max_total_edges: 5000000
+
+# Repair — identical to config_bigann10m.yaml
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager — identical to config_bigann10m.yaml
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations — same schedule as config_bigann10m.yaml
+drift_transition_epochs_gradual: [6, 10, 16, 20]
+drift_transition_epochs_sudden: [13]

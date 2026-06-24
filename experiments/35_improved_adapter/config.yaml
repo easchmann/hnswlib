@@ -1,0 +1,53 @@
+# Data — reuse exp01 dataset and index as-is
+index_path:      experiments/01_drift_baseline/index.bin
+dataset_gradual: experiments/01_drift_baseline/dataset_gradual
+dataset_sudden:  experiments/01_drift_baseline/dataset_sudden
+n_base: 5000000
+
+# Output
+results_gradual: experiments/35_improved_adapter/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — same as exp08/exp30 for direct comparability
+n_calibration_epochs: 6
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph capacity — same as exp08
+M_conj: 48
+max_total_edges: 500000
+
+# Repair — same as exp08 except recalibration disabled
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager-specific parameters
+mini_batch_size: 50         # queries processed before checking if repair should fire
+min_repair_queries: 20      # fire per-query repair when this many hard queries accumulate
+use_visited_expansion: true # expand conjugate from all ef-visited nodes, not just top-k
+eh_individual_threshold_percentile: 75.0  # per-query EH percentile from calibration buffer
+                                          # for identifying hard queries within mini-batches
+
+# Mode dispatch (fix 4)
+mode_dispatch_sample_size: 50   # number of hard queries to run diagnostic on
+mode_dispatch_ef_multiplier: 4  # diagnostic runs at primary_ef * this
+mode_dispatch_eh_ratio: 0.5     # beam-width mode if mean_eh(high_ef) < ratio * mean_eh(low_ef)
+escalated_ef: 128               # ef to use for hard queries in beam-width mode
+
+# Plot annotations
+drift_transition_epochs_gradual: [6, 10, 16, 20]
+drift_transition_epochs_sudden: [13]

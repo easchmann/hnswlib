@@ -1,0 +1,50 @@
+# Experiment 35 — SIFT1M (sift_base.fvecs, 1M vectors, 128 dims)
+index_path:      experiments/35_improved_adapter/sift1m/index.bin
+dataset_gradual: experiments/35_improved_adapter/sift1m/dataset_gradual
+dataset_sudden:  experiments/35_improved_adapter/sift1m/dataset_sudden
+n_base: 1000000
+
+# Output
+results_gradual: experiments/35_improved_adapter/sift1m/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/sift1m/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/sift1m/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector
+n_calibration_epochs: 6
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph capacity
+M_conj: 48
+max_total_edges: 500000
+
+# Repair
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations
+drift_transition_epochs_gradual: [6, 10, 16, 20]
+drift_transition_epochs_sudden: [13]

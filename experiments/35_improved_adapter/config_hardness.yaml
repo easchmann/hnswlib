@@ -1,0 +1,50 @@
+# Hardness drift dataset — already built (exp33), do NOT rebuild
+data_dir:        /scratch/easchman/thesis/data/sift_hardness
+index_path:      /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+dataset_gradual: experiments/33_sift_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/33_sift_hardness_drift/dataset_sudden
+
+# Output — write into exp35's directory tree to keep all improved-adapter results together
+results_gradual: experiments/35_improved_adapter/hardness/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/hardness/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/hardness/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — same as exp33 for direct comparability
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — same budget as exp08/exp35
+M_conj: 48
+max_total_edges: 500000
+
+# Repair
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations — exp33 schedule (gradual ramps 5 ->10, 15 ->20; sudden at 13)
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden: [13]

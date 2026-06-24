@@ -1,0 +1,54 @@
+# Hardness drift — MMD^2-gated ImprovedAdaptationManager.
+# Identical to config_hardness.yaml except: mmd2_gate=true and separate output paths.
+data_dir:        /scratch/easchman/thesis/data/sift_hardness
+index_path:      /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+dataset_gradual: experiments/33_sift_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/33_sift_hardness_drift/dataset_sudden
+
+# Output — separate subdir to keep alongside hardness/ for direct comparison
+results_gradual: experiments/35_improved_adapter/hardness_mmd2gate/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/hardness_mmd2gate/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/hardness_mmd2gate/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — identical to config_hardness.yaml
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — same budget
+M_conj: 48
+max_total_edges: 500000
+
+# Repair
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager — identical to config_hardness.yaml
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# MMD^2 gate
+mmd2_gate: true
+
+# Plot annotations — exp33 schedule
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden: [13]
