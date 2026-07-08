@@ -1,0 +1,47 @@
+# Exp 53: population EH mean gate for ImprovedAdaptationManager.
+# Re-uses exp52 clustered-hardness dataset; adds eh_population_gate to adaptive_improved.
+
+data_dir:    /scratch/easchman/thesis/data/sift_hardness
+index_path:  /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+
+# Re-use exp52 datasets — no build step needed
+dataset_gradual: experiments/52_clustered_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/52_clustered_hardness_drift/dataset_sudden
+results_gradual: experiments/53_eh_population_gate/results_gradual.csv
+results_sudden:  experiments/53_eh_population_gate/results_sudden.csv
+plots_dir:       experiments/53_eh_population_gate/plots
+
+# Population EH gate parameters
+eh_population_gate: true
+eh_gate_window_size: 200
+eh_gate_sigma: 2.0
+
+# All parameters below are identical to exp52
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+M_conj: 48
+max_total_edges: 500000
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden:  [13]

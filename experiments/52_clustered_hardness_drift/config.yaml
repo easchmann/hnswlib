@@ -1,0 +1,75 @@
+# Exp 52: clustered structural hardness drift.
+# Hard pool restricted to one KMeans cluster of the exp37-filtered queries,
+# testing whether target coherence (absent in exp38) drives conjugate repair.
+# All filter/adapter parameters identical to exp38 for direct comparability.
+
+# Source data — absolute cluster paths
+data_dir:    /scratch/easchman/thesis/data/sift_hardness
+index_path:  /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+scores_path: /scratch/easchman/thesis/data/sift_hardness/structural_scores.npy
+
+# Dataset output — relative to repo root
+dataset_gradual: experiments/52_clustered_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/52_clustered_hardness_drift/dataset_sudden
+results_gradual: experiments/52_clustered_hardness_drift/results_gradual.csv
+results_sudden:  experiments/52_clustered_hardness_drift/results_sudden.csv
+plots_dir:       experiments/52_clustered_hardness_drift/plots
+
+# Clustering to find the hard cluster
+n_cluster_candidates: 50
+min_cluster_size: 200
+cluster_seed: 42
+
+# Structural filter thresholds — same as exp37 for comparability
+eh_high_percentile:    75.0
+recall_low_threshold:  0.5
+recall_high_threshold: 0.8
+
+# Pool sizes
+easy_pool_size: 500000
+hard_pool_size: 50000
+
+# Epoch construction
+epoch_size: 500
+n_epochs: 25
+seed: 42
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# Drift detector — same as exp38 for direct comparability
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — same as exp38
+M_conj: 48
+max_total_edges: 500000
+
+# Repair — same as exp38
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager — same as exp38
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden:  [13]

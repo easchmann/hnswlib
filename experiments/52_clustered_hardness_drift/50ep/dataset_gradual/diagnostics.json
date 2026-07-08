@@ -1,0 +1,302 @@
+[
+  {
+    "epoch_idx": 0,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 1,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 2,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 3,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 4,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 5,
+    "t_value": 0.0,
+    "approx_mean_recall32": 1.0,
+    "hard_fraction": 0.0
+  },
+  {
+    "epoch_idx": 6,
+    "t_value": 0.125,
+    "approx_mean_recall32": 0.9165295511484146,
+    "hard_fraction": 0.124
+  },
+  {
+    "epoch_idx": 7,
+    "t_value": 0.25,
+    "approx_mean_recall32": 0.8317128047347069,
+    "hard_fraction": 0.25
+  },
+  {
+    "epoch_idx": 8,
+    "t_value": 0.375,
+    "approx_mean_recall32": 0.7468960583209991,
+    "hard_fraction": 0.376
+  },
+  {
+    "epoch_idx": 9,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 10,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 11,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 12,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 13,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 14,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 15,
+    "t_value": 0.5,
+    "approx_mean_recall32": 0.6634256094694138,
+    "hard_fraction": 0.5
+  },
+  {
+    "epoch_idx": 16,
+    "t_value": 0.625,
+    "approx_mean_recall32": 0.5799551606178284,
+    "hard_fraction": 0.624
+  },
+  {
+    "epoch_idx": 17,
+    "t_value": 0.75,
+    "approx_mean_recall32": 0.49513841420412064,
+    "hard_fraction": 0.75
+  },
+  {
+    "epoch_idx": 18,
+    "t_value": 0.875,
+    "approx_mean_recall32": 0.4103216677904129,
+    "hard_fraction": 0.876
+  },
+  {
+    "epoch_idx": 19,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 20,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 21,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 22,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 23,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 24,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 25,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 26,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 27,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 28,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 29,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 30,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 31,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 32,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 33,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 34,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 35,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 36,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 37,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 38,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 39,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 40,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 41,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 42,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 43,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 44,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 45,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 46,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 47,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 48,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  },
+  {
+    "epoch_idx": 49,
+    "t_value": 1.0,
+    "approx_mean_recall32": 0.3268512189388275,
+    "hard_fraction": 1.0
+  }
+]

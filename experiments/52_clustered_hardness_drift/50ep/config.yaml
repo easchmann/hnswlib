@@ -1,0 +1,79 @@
+# Exp 52 / 50ep: clustered structural hardness drift — 50-epoch convergence run.
+# Extends the plateau from 5 epochs (ep20–24) to 30 epochs (ep20–49) to determine
+# whether adaptive_improved is still rising at ep24 or has converged.
+# All parameters identical to the 25-epoch parent config; only paths and n_epochs change.
+
+# Source data — absolute cluster paths (same index and scores as parent)
+data_dir:    /scratch/easchman/thesis/data/sift_hardness
+index_path:  /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+scores_path: /scratch/easchman/thesis/data/sift_hardness/structural_scores.npy
+
+# Dataset output — separate from parent; parent datasets are NOT overwritten
+dataset_gradual: experiments/52_clustered_hardness_drift/50ep/dataset_gradual
+dataset_sudden:  experiments/52_clustered_hardness_drift/50ep/dataset_sudden
+results_gradual: experiments/52_clustered_hardness_drift/50ep/results_gradual.csv
+results_sudden:  experiments/52_clustered_hardness_drift/50ep/results_sudden.csv
+plots_dir:       experiments/52_clustered_hardness_drift/50ep/plots
+
+# Clustering — identical to parent for reproducibility
+n_cluster_candidates: 50
+min_cluster_size: 200
+cluster_seed: 42
+
+# Structural filter thresholds — same as exp37/52
+eh_high_percentile:    75.0
+recall_low_threshold:  0.5
+recall_high_threshold: 0.8
+
+# Pool sizes — same as parent
+easy_pool_size: 500000
+hard_pool_size: 50000
+
+# Epoch construction — 50 epochs; gradual plateau extended to ep20-49
+epoch_size: 500
+n_epochs: 50
+seed: 42
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# Drift detector — same as parent
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — same as parent
+M_conj: 48
+max_total_edges: 500000
+
+# Repair — same as parent
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager — same as parent
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations — transition epochs same (ramp is still in ep5-19)
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden:  [13]
+
+# Plateau window for summary statistics
+plateau_start: 40
+plateau_end:   49
