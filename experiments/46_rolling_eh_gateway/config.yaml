@@ -1,0 +1,39 @@
+dataset_grad:   experiments/16_deep_cluster_drift/dataset_gradual
+dataset_sudden: experiments/16_deep_cluster_drift/dataset_sudden
+index_path:     experiments/16_deep_cluster_drift/index.bin
+
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# gateway rolling-EH condition
+ef_low: 32
+ef_high: 256
+n_gateway: 20
+n_calibration_epochs: 5
+rolling_window_size: 300
+eh_gate_k: 2.0
+min_window_fill: 100
+
+# adaptive_eh condition — identical to exp45 for direct comparability
+eh_window_size: 500
+eh_n_cells: 100
+eh_n_rff: 256
+eh_hot_cell_lambda: 2.0
+eh_n_calibration_epochs: 5
+eh_M_candidates: 32
+eh_ef_repair: 200
+eh_cooldown: 0
+eh_M_conj: 48
+eh_max_total_edges: 500000
+eh_max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+eh_rng_relaxation: 0
+eh_two_hop: true
+
+drift_transition_epochs_gradual: [5, 15]
+drift_transition_epochs_sudden: [13]
+
+results_gradual: experiments/46_rolling_eh_gateway/results_gradual.csv
+results_sudden:  experiments/46_rolling_eh_gateway/results_sudden.csv
+plots_dir:       experiments/46_rolling_eh_gateway/plots
