@@ -1,0 +1,54 @@
+# Data paths — absolute (cluster-specific) for source data
+data_dir:    /scratch/easchman/thesis/data/sift_hardness
+index_path:  /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+scores_path: /scratch/easchman/thesis/data/sift_hardness/structural_scores.npy
+
+# Dataset output paths — relative to repo root
+dataset_gradual: experiments/37_structural_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/37_structural_hardness_drift/dataset_sudden
+results_gradual: experiments/37_structural_hardness_drift/results_gradual.csv
+results_sudden:  experiments/37_structural_hardness_drift/results_sudden.csv
+plots_dir:       experiments/37_structural_hardness_drift/plots
+
+# Drift construction
+easy_pool_size: 500000
+hard_pool_size: 50000
+epoch_size: 500
+n_epochs: 25
+seed: 42
+
+# Structural scoring ef values
+ef_score_low:  32
+ef_score_high: 256
+
+# Pool selection thresholds
+eh_high_percentile:    75.0
+recall_low_threshold:  0.5
+recall_high_threshold: 0.8
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — same as exp33 for direct comparability
+eh_window_size: 500
+eh_n_cells: 100
+eh_n_rff: 256
+eh_hot_cell_lambda: 2.0
+eh_n_calibration_epochs: 5
+
+# Conjugate EH adapter
+eh_M_candidates: 32
+eh_ef_repair: 200
+eh_cooldown: 0
+eh_M_conj: 48
+eh_max_total_edges: 500000
+eh_max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+eh_rng_relaxation: 0
+eh_two_hop: true
+
+# Plot annotations
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden: [13]

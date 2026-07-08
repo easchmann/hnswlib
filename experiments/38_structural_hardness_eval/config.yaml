@@ -1,0 +1,57 @@
+# Exp38: structural hardness drift eval — same three conditions as exp35 hardness,
+# but on the exp37 dataset (queries filtered by three-way structural criterion).
+# Evaluation script: experiments/35_improved_adapter/run_experiment_hardness.py
+# Key names must match that script exactly (no eh_ prefix, no _conj suffix, etc.)
+
+# Data paths — absolute (cluster-specific)
+data_dir:   /scratch/easchman/thesis/data/sift_hardness
+index_path: /scratch/easchman/thesis/data/sift_hardness/hnsw_index.bin
+
+# Datasets — exp37 structural hardness (relative to repo root)
+dataset_gradual: experiments/37_structural_hardness_drift/dataset_gradual
+dataset_sudden:  experiments/37_structural_hardness_drift/dataset_sudden
+
+# Output (relative to repo root)
+results_gradual: experiments/38_structural_hardness_eval/results_gradual.csv
+results_sudden:  experiments/38_structural_hardness_eval/results_sudden.csv
+plots_dir:       experiments/38_structural_hardness_eval/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector — same as exp35/exp33 for direct comparability
+n_calibration_epochs: 5
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph — same budget as exp35
+M_conj: 48
+max_total_edges: 500000
+
+# Repair — same as exp35
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager — same as exp35
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations — same schedule structure as exp33/exp35
+drift_transition_epochs_gradual: [5, 10, 15, 20]
+drift_transition_epochs_sudden: [13]
