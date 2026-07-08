@@ -1,0 +1,77 @@
+# Exp35 SIFT1M — feedback-loop diagnostic, recall-based version.
+#
+# Third pass at testing the positive-feedback-loop hypothesis on the same
+# SIFT1M rotation-drift setup, following:
+#   v1 (sift1m_feedback_diag): mean_source_query_dist vs. mean_static_topk_dist
+#       (all-queries reference) — later found to be dominated by a
+#       population-composition confound (hard-query subset converging with
+#       the whole population as rotation drift progresses).
+#   v2 (same directory, mean_hardonly_static_dist added): deconfounded
+#       distance comparison, matched to the same hard-query population.
+#       Isolated a small (~0.7% of the absolute distance scale) but real,
+#       monotonically growing residual — real, but a much smaller effect
+#       than the confounded v1 comparison suggested, and hard to interpret
+#       given the L2 distance scale is dominated by drift-induced inflation.
+#   v3 (this config): same matched hard-query design as v2, but using
+#       recall@k against ground truth instead of raw distance. Ground truth
+#       is used only in the evaluation harness (run_experiment.py), never
+#       inside the adapter itself, preserving its ground-truth-free design.
+#       recall_adaptive_hardonly vs. recall_static_hardonly, both computed
+#       on the exact same hard-query indices each epoch. The feedback-loop
+#       signature to look for is a GROWING gap (not just gap > 0) that
+#       tracks edge accumulation — a gap that appears instantly and then
+#       stays flat would indicate a one-shot benefit, not a compounding loop.
+#
+# Identical index, datasets, and adapter hyperparameters to config_sift1m.yaml
+# and config_sift1m_feedback_diag.yaml; only adaptive_improved is rerun.
+index_path:      experiments/35_improved_adapter/sift1m/index.bin
+dataset_gradual: experiments/35_improved_adapter/sift1m/dataset_gradual
+dataset_sudden:  experiments/35_improved_adapter/sift1m/dataset_sudden
+n_base: 1000000
+
+conditions: [adaptive_improved]
+
+# Output — separate directory, does not touch sift1m/ or sift1m_feedback_diag/
+results_gradual: experiments/35_improved_adapter/sift1m_feedback_diag_recall/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/sift1m_feedback_diag_recall/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/sift1m_feedback_diag_recall/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector
+n_calibration_epochs: 6
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph capacity
+M_conj: 48
+max_total_edges: 500000
+
+# Repair
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations
+drift_transition_epochs_gradual: [6, 10, 16, 20]
+drift_transition_epochs_sudden: [13]

@@ -1,0 +1,63 @@
+# Exp35 SIFT1M — positive-feedback-loop diagnostic rerun.
+#
+# Identical to config_sift1m.yaml (same index, same datasets, same adapter
+# hyperparameters) so results are directly comparable to the original run.
+# Only two things differ:
+#   1. `conditions: [adaptive_improved]` — static and adaptive_current are
+#      unchanged by the new instrumentation, so they are not rerun.
+#   2. Output paths point at sift1m_feedback_diag/ instead of sift1m/, so the
+#      original canonical results used in the thesis are never overwritten.
+#
+# Reuses the already-built index and datasets from experiments/35_improved_adapter/sift1m/
+# (built once by run_exp35_sift1m.sh); this script does not rebuild them.
+index_path:      experiments/35_improved_adapter/sift1m/index.bin
+dataset_gradual: experiments/35_improved_adapter/sift1m/dataset_gradual
+dataset_sudden:  experiments/35_improved_adapter/sift1m/dataset_sudden
+n_base: 1000000
+
+conditions: [adaptive_improved]
+
+# Output — separate directory, does not touch the original sift1m/ results
+results_gradual: experiments/35_improved_adapter/sift1m_feedback_diag/results_gradual.csv
+results_sudden:  experiments/35_improved_adapter/sift1m_feedback_diag/results_sudden.csv
+plots_dir:       experiments/35_improved_adapter/sift1m_feedback_diag/plots
+
+# Evaluation
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# EH detector
+n_calibration_epochs: 6
+window_size: 500
+n_cells: 100
+n_rff: 256
+hot_cell_lambda: 2.0
+
+# Conjugate graph capacity
+M_conj: 48
+max_total_edges: 500000
+
+# Repair
+M_candidates: 32
+repair_ef_search: 200
+repair_cooldown: 0
+max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+rng_relaxation: 0
+two_hop: true
+recalibration_enabled: false
+
+# ImprovedAdaptationManager
+mini_batch_size: 50
+min_repair_queries: 20
+use_visited_expansion: true
+eh_individual_threshold_percentile: 75.0
+mode_dispatch_sample_size: 50
+mode_dispatch_ef_multiplier: 4
+mode_dispatch_eh_ratio: 0.5
+escalated_ef: 128
+
+# Plot annotations
+drift_transition_epochs_gradual: [6, 10, 16, 20]
+drift_transition_epochs_sudden: [13]

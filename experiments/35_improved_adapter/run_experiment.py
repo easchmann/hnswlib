@@ -1,7 +1,6 @@
 """Experiment 35: static vs adaptive_current vs adaptive_improved on SIFT rotation drift."""
 
 import csv
-import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -14,16 +13,8 @@ sys.path.insert(0, str(ROOT))
 
 import hnswlib
 
-# Load ImprovedAdaptationManager from the same directory without requiring it on sys.path
-_spec = importlib.util.spec_from_file_location(
-    "improved_adapter",
-    Path(__file__).parent / "improved_adapter.py",
-)
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)
-ImprovedAdaptationManager = _mod.ImprovedAdaptationManager
-
 from src.drift.adapter import AdaptationManager
+from src.drift.improved_adapter import ImprovedAdaptationManager
 from src.drift.conjugate_graph import ConjugateGraph
 from src.drift.dataset import load_drift_dataset
 from src.drift.detector import (
@@ -74,7 +65,7 @@ def run_static(dataset, index_path, cfg):
     for epoch_idx, (queries, gt) in enumerate(zip(dataset["epochs"], dataset["groundtruth"])):
         for ef in ef_values:
             index.set_ef(ef)
-            ids, _ = index.knn_query(queries, k=k)
+            ids, _ = index.knn_query(queries, k=k, num_threads=1)
             recall = _compute_recall(ids, gt, k)
             rows.append({
                 "condition": "static",
@@ -108,7 +99,7 @@ def run_adaptive_current(dataset, index_path, cfg):
     index.set_ef(primary_ef)
     for i in range(n_calib):
         queries = dataset["epochs"][i]
-        labels, _ = index.knn_query(queries, k=k)
+        labels, _ = index.knn_query(queries, k=k, num_threads=1)
         eh_vals = compute_eh_batch([base[labels[j]] for j in range(len(queries))])
         cids = assign_cell(queries, centroids)
         calib_eh.extend(eh_vals)
@@ -240,6 +231,28 @@ def run_adaptive_improved(dataset, index_path, cfg):
             queries, k, ef_values
         )
 
+        # Matched recall comparison: adaptive (conjugate-augmented) vs. a fresh raw
+        # static search, both restricted to the SAME hard-query indices this epoch.
+        # This is the recall-based counterpart to mean_hardonly_static_dist — same
+        # matched-population design, but using the thesis's primary metric (recall)
+        # instead of raw L2 distance, which is less sensitive to the intrinsic
+        # drift-driven distance inflation that swamps the distance-based signal.
+        # Ground truth is used here in the evaluation harness only, never inside
+        # the adapter itself, preserving the ground-truth-free design of the
+        # deployed adaptation mechanism.
+        hard_idx = stats.get("hard_query_indices") or []
+        if hard_idx:
+            hard_idx = np.array(hard_idx, dtype=np.int64)
+            recall_adaptive_hardonly = _compute_recall(
+                all_ids_by_ef[primary_ef][hard_idx], gt[hard_idx], k
+            )
+            index.set_ef(primary_ef)
+            raw_hard_ids, _ = index.knn_query(queries[hard_idx], k=k, num_threads=1)
+            recall_static_hardonly = _compute_recall(raw_hard_ids, gt[hard_idx], k)
+        else:
+            recall_adaptive_hardonly = None
+            recall_static_hardonly = None
+
         for ef in ef_values:
             recall = _compute_recall(all_ids_by_ef[ef], gt, k)
             rows.append({
@@ -248,21 +261,51 @@ def run_adaptive_improved(dataset, index_path, cfg):
                 "ef": ef,
                 "recall": recall,
                 "edge_count": cg._total_edges,
+                "mean_source_query_dist": stats.get("mean_source_query_dist"),
+                "mean_static_topk_dist": stats.get("mean_static_topk_dist"),
+                "mean_hardonly_static_dist": stats.get("mean_hardonly_static_dist"),
+                "n_hard_queries": len(hard_idx),
+                "recall_adaptive_hardonly": recall_adaptive_hardonly,
+                "recall_static_hardonly": recall_static_hardonly,
             })
 
         primary_recall = _compute_recall(all_ids_by_ef[primary_ef], gt, k)
+        src_dist = stats.get("mean_source_query_dist")
+        src_dist_str = f"{src_dist:.4f}" if src_dist is not None else "n/a"
+        hardonly_dist = stats.get("mean_hardonly_static_dist")
+        hardonly_dist_str = f"{hardonly_dist:.4f}" if hardonly_dist is not None else "n/a"
+        rah_str = f"{recall_adaptive_hardonly:.4f}" if recall_adaptive_hardonly is not None else "n/a"
+        rsh_str = f"{recall_static_hardonly:.4f}" if recall_static_hardonly is not None else "n/a"
         print(
             f"  [adaptive_improved] epoch {epoch_idx:2d}  recall@{primary_ef}={primary_recall:.4f}"
             f"  edges_added={stats['total_edges_added']}  repairs={stats['repair_count']}"
             f"  mode={stats['mode']}"
+            f"  src_dist={src_dist_str}  static_topk_dist={stats['mean_static_topk_dist']:.4f}"
+            f"  hardonly_static_dist={hardonly_dist_str}"
+            f"  n_hard={len(hard_idx)}  recall_adaptive_hardonly={rah_str}  recall_static_hardonly={rsh_str}"
         )
 
     return rows
 
 
+RUNNERS = {
+    "static": run_static,
+    "adaptive_current": run_adaptive_current,
+    "adaptive_improved": run_adaptive_improved,
+}
+
+
 def main():
     config_path = sys.argv[1] if len(sys.argv) > 1 else str(EXP_DIR / "config.yaml")
     cfg = _load_config(config_path)
+
+    # Optional: restrict which conditions run, e.g. to rerun only adaptive_improved
+    # after instrumenting it, without redoing the unchanged static/adaptive_current
+    # baselines. Defaults to all three for backward compatibility.
+    conditions = cfg.get("conditions", list(RUNNERS.keys()))
+    unknown = set(conditions) - set(RUNNERS)
+    if unknown:
+        raise ValueError(f"Unknown condition(s) in config 'conditions': {unknown}")
 
     schedules = [
         ("gradual", cfg["dataset_gradual"], cfg["results_gradual"]),
@@ -278,15 +321,9 @@ def main():
         index_path = cfg["index_path"]
 
         all_rows = []
-
-        print("\n--- static ---")
-        all_rows.extend(run_static(dataset, index_path, cfg))
-
-        print("\n--- adaptive_current ---")
-        all_rows.extend(run_adaptive_current(dataset, index_path, cfg))
-
-        print("\n--- adaptive_improved ---")
-        all_rows.extend(run_adaptive_improved(dataset, index_path, cfg))
+        for condition in conditions:
+            print(f"\n--- {condition} ---")
+            all_rows.extend(RUNNERS[condition](dataset, index_path, cfg))
 
         _save_rows(all_rows, str(ROOT / out_path))
 

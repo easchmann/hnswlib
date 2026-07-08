@@ -1,5 +1,7 @@
 """ImprovedAdaptationManager: four fixes over the current EH conjugate adapter."""
 
+from collections import deque
+
 import numpy as np
 
 import hnswlib
@@ -50,6 +52,12 @@ class ImprovedAdaptationManager:
         self._calibration_eh_buffer = []
         self._drift_detected_ever = False
         self.mmd2_gate = config.get("mmd2_gate", False)
+        self.eh_population_gate = config.get("eh_population_gate", False)
+        self._eh_gate_window_size = config.get("eh_gate_window_size", 200)
+        self._eh_gate_sigma = config.get("eh_gate_sigma", 2.0)
+        self._eh_rolling_window = deque(maxlen=self._eh_gate_window_size)
+        self._eh_population_gate_open = False
+        self._eh_gate_threshold = None
 
     def run_calibration_epochs(self, dataset, n_calib, k, primary_ef):
         """Run pre-drift calibration epochs; returns (calib_eh, calib_cell_ids) flat arrays."""
@@ -57,7 +65,7 @@ class ImprovedAdaptationManager:
         self.index.set_ef(primary_ef)
         for i in range(n_calib):
             queries = dataset["epochs"][i]
-            labels, _ = self.index.knn_query(queries, k=k)
+            labels, _ = self.index.knn_query(queries, k=k, num_threads=1)
             eh_vals = compute_eh_batch([self.base[labels[j]] for j in range(len(queries))])
             cids = assign_cell(queries, self._centroids)
             calib_eh.extend(eh_vals)
@@ -72,6 +80,14 @@ class ImprovedAdaptationManager:
         ))
         print(f"Per-query EH threshold (p{self.config['eh_individual_threshold_percentile']:.0f}): "
               f"{self._individual_eh_threshold:.4f}")
+        if self.eh_population_gate:
+            self._eh_gate_threshold = (
+                float(np.mean(calib_eh_values))
+                + self._eh_gate_sigma * float(np.std(calib_eh_values))
+            )
+            print(f"Population EH gate threshold: {self._eh_gate_threshold:.4f} "
+                  f"(calib_mean={float(np.mean(calib_eh_values)):.4f}, "
+                  f"calib_std={float(np.std(calib_eh_values)):.4f})")
 
     def search_single(self, query, k, ef):
         """Search one query with conjugate expansion from all ef-visited nodes."""
@@ -156,12 +172,17 @@ class ImprovedAdaptationManager:
               f"(eh_low={mean_low:.4f}, eh_high={mean_high:.4f})")
 
     def _perquery_repair(self, hard_query_buffer):
-        """Fix 1: repair from each hard query's exact vector instead of cell mean."""
+        """Fix 1: repair from each hard query's exact vector instead of cell mean.
+
+        Also measures, per repair event, the mean distance from the repair source nodes (``low_ef_ids``) to the query they were retrieved for. 
+        (intended as test of the "positive feedback loop" hypothesis)
+        """
         old_ef = self.index.ef
         self.index.set_ef(self.ef_repair)
 
         t_added = self.current_epoch / max(1, self.config.get("n_epochs", 25))
         edges_added = 0
+        source_query_dists = []
 
         for q, low_ef_ids in hard_query_buffer:
             high_ef_labels, high_ef_dists = self.index.knn_query(
@@ -173,6 +194,9 @@ class ImprovedAdaptationManager:
                 for nid, d in zip(high_ef_labels[0], high_ef_dists[0])
                 if int(nid) not in low_ef_set
             ]
+            source_query_dists.append(
+                float(np.mean(np.linalg.norm(self.base[low_ef_ids] - q, axis=1)))
+            )
             for src in low_ef_ids:
                 for dst_nid, dst_dist in new_candidates:
                     added = self.conjugate_graph.add_edge(
@@ -185,7 +209,7 @@ class ImprovedAdaptationManager:
                         edges_added += 1
 
         self.index.set_ef(old_ef)
-        return edges_added
+        return edges_added, source_query_dists
 
     def process_epoch_online(self, queries, k, ef_values):
         """Mini-batch sliding-window repair with per-query direction and mode dispatch."""
@@ -200,6 +224,9 @@ class ImprovedAdaptationManager:
         total_edges = 0
         repair_count = 0
         all_eh = []
+        epoch_source_dists = []
+        epoch_hardonly_static_dists = []
+        epoch_hard_query_indices = []
         mode_dispatched_this_epoch = False
 
         for batch_start in range(0, n_queries, self.mini_batch_size):
@@ -220,6 +247,15 @@ class ImprovedAdaptationManager:
             mb_eh = compute_eh_batch(mb_result_vecs)
             all_eh.extend(mb_eh.tolist())
 
+            if self.eh_population_gate and not self._eh_population_gate_open:
+                self._eh_rolling_window.extend(mb_eh.tolist())
+                if (len(self._eh_rolling_window) >= self._eh_gate_window_size // 2
+                        and float(np.mean(self._eh_rolling_window)) > self._eh_gate_threshold):
+                    self._eh_population_gate_open = True
+                    print(f"  [eh_population_gate] opened at epoch {self.current_epoch} "
+                          f"(mean_eh={float(np.mean(self._eh_rolling_window)):.4f}, "
+                          f"threshold={self._eh_gate_threshold:.4f})")
+
             # update node EH accumulator (EMA)
             for i, eh in enumerate(mb_eh):
                 gi = batch_start + i
@@ -235,9 +271,25 @@ class ImprovedAdaptationManager:
             # identify hard queries in mini-batch
             for i, eh in enumerate(mb_eh):
                 if self._individual_eh_threshold is not None and eh > self._individual_eh_threshold:
-                    if not self.mmd2_gate or self._drift_detected_ever:
+                    if ((not self.mmd2_gate or self._drift_detected_ever)
+                            and (not self.eh_population_gate or self._eh_population_gate_open)):
                         gi = batch_start + i
                         hard_query_buffer.append((queries[gi], all_ids_by_ef[primary_ef][gi].copy()))
+
+                        # Hard-query-only static reference: raw, non-adaptive top-k
+                        # search on this exact same query, restricted to the same
+                        # hard-query population used for mean_source_query_dist. 
+                        self.index.set_ef(primary_ef)
+                        raw_labels, _ = self.index.knn_query(
+                            queries[gi].reshape(1, -1), k=k, num_threads=1
+                        )
+                        epoch_hardonly_static_dists.append(float(np.mean(
+                            np.linalg.norm(self.base[raw_labels[0]] - queries[gi], axis=1)
+                        )))
+
+                        # Record which query (by index within this epoch's batch) was
+                        # flagged hard, to compute a matched recall comparison (adaptive vs. raw static, same queries) against ground truth. 
+                        epoch_hard_query_indices.append(gi)
 
             # fire repair when buffer is large enough
             if len(hard_query_buffer) >= self.min_repair_queries:
@@ -246,8 +298,9 @@ class ImprovedAdaptationManager:
                     mode_dispatched_this_epoch = True
 
                 if self._current_mode == "repair":
-                    edges = self._perquery_repair(hard_query_buffer)
+                    edges, dists = self._perquery_repair(hard_query_buffer)
                     total_edges += edges
+                    epoch_source_dists.extend(dists)
                     repair_count += 1
                 elif self._current_mode == "escalate":
                     # re-run hard queries at escalated ef
@@ -259,14 +312,16 @@ class ImprovedAdaptationManager:
 
         # drain remaining buffer
         if hard_query_buffer:
-            if not self.mmd2_gate or self._drift_detected_ever:
+            if ((not self.mmd2_gate or self._drift_detected_ever)
+                    and (not self.eh_population_gate or self._eh_population_gate_open)):
                 if self._drift_detected_ever and not mode_dispatched_this_epoch:
                     self._run_mode_dispatch([q for q, _ in hard_query_buffer])
                     mode_dispatched_this_epoch = True
 
                 if self._current_mode == "repair":
-                    edges = self._perquery_repair(hard_query_buffer)
+                    edges, dists = self._perquery_repair(hard_query_buffer)
                     total_edges += edges
+                    epoch_source_dists.extend(dists)
                     repair_count += 1
                 elif self._current_mode == "escalate":
                     repair_count += 1
@@ -290,6 +345,14 @@ class ImprovedAdaptationManager:
                         sample_q = [queries[i] for i in hard_indices]
                         self._run_mode_dispatch(sample_q)
 
+        # Reference distance: mean distance from the raw static HNSW top-k results to their queries, over every query in the epoch.
+        # "target region" baseline for mean_source_query_dist 
+        self.index.set_ef(primary_ef)
+        static_labels, _ = self.index.knn_query(queries, k=k, num_threads=1)
+        mean_static_topk_dist = float(np.mean(
+            np.linalg.norm(self.base[static_labels] - queries[:, None, :], axis=2)
+        ))
+
         self.current_epoch += 1
 
         return all_ids_by_ef, all_dists_by_ef, {
@@ -299,4 +362,12 @@ class ImprovedAdaptationManager:
             "repair_count": repair_count,
             "mean_eh": float(np.mean(all_eh)) if all_eh else 0.0,
             "mode": self._current_mode,
+            "eh_population_gate_open": self._eh_population_gate_open,
+            "mean_eh_window": float(np.mean(self._eh_rolling_window)) if self._eh_rolling_window else 0.0,
+            "mean_source_query_dist": float(np.mean(epoch_source_dists)) if epoch_source_dists else None,
+            "mean_static_topk_dist": mean_static_topk_dist,
+            "mean_hardonly_static_dist": (
+                float(np.mean(epoch_hardonly_static_dists)) if epoch_hardonly_static_dists else None
+            ),
+            "hard_query_indices": epoch_hard_query_indices,
         }
