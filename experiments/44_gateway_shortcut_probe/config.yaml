@@ -1,0 +1,14 @@
+# Experiment 43: oracle probe — gateway->missed-NN shortcuts for cluster drift.
+# Reuses the exp16/exp30 DEEP-96 cluster drift index and datasets.
+
+dataset_grad:   experiments/16_deep_cluster_drift/dataset_gradual
+dataset_sudden: experiments/16_deep_cluster_drift/dataset_sudden
+index_path:     experiments/16_deep_cluster_drift/index.bin
+
+k: 10
+ef_low: 32     # the ef we want to improve via shortcuts
+ef_values: [32, 64, 128, 256]   # baseline sweep to characterise the ef gap
+n_gateway: 20     # how many first-visited nodes to use as edge sources
+probe_epoch: 22   # fully drifted (t=1); plateau is epochs 20-24
+
+results: experiments/44_gateway_shortcut_probe/results.csv
