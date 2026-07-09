@@ -46,7 +46,7 @@ def select_hot_clusters_by_recall(index, base, query_pool, cluster_labels, n_hot
             per_cluster_recall[c] = 1.0
             continue
         _, gt = faiss_index.search(q_c.astype(np.float32), k)
-        ids, _ = index.knn_query(q_c, k=k)
+        ids, _ = index.knn_query(q_c, k=k, num_threads=1)
         recall = float(np.mean([
             len(set(ids[i].tolist()) & set(gt[i, :k].tolist())) / k
             for i in range(len(q_c))
