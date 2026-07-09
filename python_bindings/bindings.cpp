@@ -4,6 +4,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include "hnswlib.h"
+#include "conjugate_graph.h"
 #include <thread>
 #include <atomic>
 #include <stdlib.h>
@@ -997,6 +998,10 @@ PYBIND11_PLUGIN(hnswlib) {
                 (hnswlib::tableint)node_id, target_layer);
         }, py::arg("node_id"), py::arg("target_layer") = 1)
 
+        .def("set_ef_construction", [](Index<float> &index, size_t ef_construction) {
+            index.appr_alg->set_ef_construction(ef_construction);
+        }, py::arg("ef_construction"))
+
         .def("add_layer0_edge", [](Index<float> &index, size_t src, size_t dst) {
             index.appr_alg->add_layer0_edge(
                 (hnswlib::tableint)src, (hnswlib::tableint)dst);
@@ -1114,6 +1119,67 @@ PYBIND11_PLUGIN(hnswlib) {
         .def("get_max_elements", &BFIndex<float>::getMaxElements)
         .def("get_current_count", &BFIndex<float>::getCurrentCount)
         .def_readwrite("num_threads", &BFIndex<float>::num_threads_default);
+
+        // secondary edge store augmenting hnswlib without modifying it
+        py::class_<hnswlib::ConjugateGraph>(m, "ConjugateGraph")
+        .def(py::init<size_t, size_t>(), py::arg("M_conj") = 8, py::arg("max_total_edges") = 500000)
+
+        .def("add_edge", &hnswlib::ConjugateGraph::add_edge,
+            py::arg("src"), py::arg("dst"), py::arg("distance"), py::arg("t_added"),
+            py::arg("epoch_added"), py::arg("current_epoch"))
+
+        .def("enhanced_search", [](hnswlib::ConjugateGraph &g,
+                                    py::array_t<int64_t, py::array::c_style | py::array::forcecast> seed_ids,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> seed_dists,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> base,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> query_vec,
+                                    size_t k, int current_epoch, bool two_hop) -> py::tuple {
+            auto ids_buf = seed_ids.request();
+            auto dists_buf = seed_dists.request();
+            auto base_buf = base.request();
+            auto query_buf = query_vec.request();
+            if (base_buf.ndim != 2)
+                throw std::runtime_error("enhanced_search: base must be 2-D");
+            if (query_buf.ndim != 1)
+                throw std::runtime_error("enhanced_search: query_vec must be 1-D");
+            size_t dim = base_buf.shape[1];
+
+            int64_t *ids_ptr = (int64_t *)ids_buf.ptr;
+            std::vector<uint32_t> ids_vec(ids_buf.shape[0]);
+            for (ssize_t i = 0; i < ids_buf.shape[0]; i++) ids_vec[i] = (uint32_t)ids_ptr[i];
+            float *dists_ptr = (float *)dists_buf.ptr;
+            std::vector<float> dists_vec(dists_ptr, dists_ptr + dists_buf.shape[0]);
+
+            auto result = g.enhanced_search(ids_vec, dists_vec, (const float *)base_buf.ptr, dim,
+                (const float *)query_buf.ptr, k, current_epoch, two_hop);
+
+            py::array_t<int64_t> out_ids(result.first.size());
+            py::array_t<float> out_dists(result.second.size());
+            for (size_t i = 0; i < result.first.size(); i++) {
+                out_ids.mutable_at(i) = (int64_t)result.first[i];
+                out_dists.mutable_at(i) = result.second[i];
+            }
+            return py::make_tuple(out_ids, out_dists);
+        }, py::arg("seed_ids"), py::arg("seed_dists"), py::arg("base"), py::arg("query_vec"),
+           py::arg("k"), py::arg("current_epoch"), py::arg("two_hop") = true)
+
+        .def("evict", &hnswlib::ConjugateGraph::evict, py::arg("current_epoch"), py::arg("n_evict") = -1)
+
+        .def("stats", [](hnswlib::ConjugateGraph &g) {
+            auto s = g.stats();
+            py::dict d;
+            d["n_nodes_with_edges"] = s.n_nodes_with_edges;
+            d["total_edges"] = s.total_edges;
+            d["mean_edges_per_node"] = s.mean_edges_per_node;
+            d["max_edges_per_node"] = s.max_edges_per_node;
+            d["mean_traversal_count"] = s.mean_traversal_count;
+            d["mean_staleness"] = s.mean_staleness;
+            return d;
+        })
+
+        .def("get_all_edges", &hnswlib::ConjugateGraph::get_all_edges)
+
+        .def("bulk_load_edges", &hnswlib::ConjugateGraph::bulk_load_edges, py::arg("all_edges"));
 
         // added for query analysis
         m.def("get_last_query_stats", []() {
