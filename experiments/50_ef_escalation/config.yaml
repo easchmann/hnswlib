@@ -1,0 +1,44 @@
+dataset_grad:   experiments/16_deep_cluster_drift/dataset_gradual
+dataset_sudden: experiments/16_deep_cluster_drift/dataset_sudden
+index_path:     experiments/16_deep_cluster_drift/index.bin
+
+k: 10
+ef_values: [32, 64, 128]
+primary_ef: 32
+
+# ef escalation conditions — ratio-gated serving ef switch
+# gate opens when mean(gap_window) / calib_mean_gap > gap_ratio_threshold
+# ef_escalate: raise serving ef from ef_low to ef_escalated when gate is open (no edges)
+# ef_escalate_gateway: ef escalation + gateway edge insertion at ef_escalated (via add_layer0_edge_evict)
+# gap signal always measured as ef_low vs ef_high (for consistent window across gate states)
+ef_low: 32
+ef_escalated: 64
+ef_high: 256
+n_gateway: 20
+n_calibration_epochs: 5    # ep0–4 used to calibrate gap distribution
+p_calib: 0.10              # fraction of queries always running ef_high unconditionally
+rolling_window_size: 300
+gap_ratio_threshold: 1.3   # gate opens when mean(gap_window) / calib_mean_gap exceeds this
+
+# adaptive_eh — identical to exp45/46/47/49 for direct comparability
+eh_window_size: 500
+eh_n_cells: 100
+eh_n_rff: 256
+eh_hot_cell_lambda: 2.0
+eh_n_calibration_epochs: 5
+eh_M_candidates: 32
+eh_ef_repair: 200
+eh_cooldown: 0
+eh_M_conj: 48
+eh_max_total_edges: 500000
+eh_max_repair_nodes: 500
+eh_threshold_percentile: 75.0
+eh_rng_relaxation: 0
+eh_two_hop: true
+
+drift_transition_epochs_gradual: [5, 15]
+drift_transition_epochs_sudden: [13]
+
+results_gradual: experiments/50_ef_escalation/results_gradual.csv
+results_sudden:  experiments/50_ef_escalation/results_sudden.csv
+plots_dir:       experiments/50_ef_escalation/plots
